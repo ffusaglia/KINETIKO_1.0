@@ -83,3 +83,12 @@ Motore a griglia generativa BPM-driven ispirato al riferimento "303 MTL PLUGIN".
 - ✅ **Bug fix media upload**: gli upload (immagini/GIF/clip) vengono letti come **data URL** (funzionano tra finestre); `assignContent` garantisce almeno una cella media quando ci sono clip; feedback toast all'upload. Le celle media sono rese in **duotone** (grayscale + mix-blend screen).
 - ✅ **Media nel Pop-out**: messaggio BroadcastChannel dedicato `media` porta i data URL a `/grid-output` (il broadcast per-beat resta leggero). `GridOutput` ricostruisce gli URL delle clip. Funziona sia aprendo il pop-out prima sia dopo l'upload.
 - ✅ Testing agent iteration_6: media in griglia + pop-out (entrambi gli ordini), persistenza sui beat, rimozione clip, regressioni — 100%.
+
+## GRID v5 — colori custom, duotone immagini, fade rotazione, invert random (2026-06)
+- ✅ **Doppio color picker RGB** (color1 sfondo + color2 ink) al posto delle palette preset; bottone "Scambia colori".
+- ✅ **1 immagine = 1 riquadro**: le clip occupano solo le celle più piccole (una per clip), il testo resta nelle altre; non sostituiscono più tutte le celle.
+- ✅ **Duotone immagini via filtro SVG** (feColorMatrix + feComponentTransfer) mappato ai 2 colori scelti; **inversione funziona** senza artefatti (filtri duoA/duoB, niente white-out).
+- ✅ **Invert random durante il live**: sul cut il flip avviene solo random (~35%), non ad ogni ciclo.
+- ✅ **Fade sulla rotazione**: quando il testo passa orizzontale↔verticale, entra con un leggero fade (`vj-fade`), niente più scatto.
+- ✅ **Avviso dimensione clip**: warning oltre 8MB, blocco oltre 40MB.
+- ✅ Testing agent iteration_7: 6/6 modifiche + regressioni al 100%.
