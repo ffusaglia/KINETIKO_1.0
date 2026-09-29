@@ -1,0 +1,140 @@
+{
+  "project_title": "VJ Kinetic Type Engine - Live Real-Time Visual Text & Media Manipulator",
+  "app_archetype": "pro_vj_creative_tool_hybrid",
+  "theme": {
+    "default_mode": "dark",
+    "control_ui_bg": "#09090B",
+    "canvas_default_bg": "#000000",
+    "canvas_default_text_color": "#FFFFFF"
+  },
+  "typography": {
+    "ui_headings_font": "Space Grotesk, sans-serif",
+    "ui_body_font": "Inter, sans-serif",
+    "ui_mono_font": "JetBrains Mono, monospace",
+    "canvas_default_font": "Anton",
+    "canvas_font_options": [
+      "Anton",
+      "Syne",
+      "Space Grotesk",
+      "Bebas Neue",
+      "Cinzel",
+      "Playfair Display",
+      "JetBrains Mono",
+      "Unbounded",
+      "Chivo Mono",
+      "Caveat"
+    ],
+    "scale": {
+      "h1_title": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h2_section": "text-xs font-semibold uppercase tracking-widest text-zinc-400",
+      "h3_card": "text-sm font-medium tracking-wide text-zinc-200",
+      "body": "text-xs text-zinc-300",
+      "mono_label": "text-[11px] font-mono tracking-wider text-zinc-400"
+    }
+  },
+  "colors": {
+    "background_obsidian": "#09090B",
+    "surface_dark": "#121215",
+    "surface_elevated": "#18181B",
+    "border_subtle": "#27272A",
+    "border_highlight": "#3F3F46",
+    "text_primary": "#FAFAFA",
+    "text_secondary": "#A1A1AA",
+    "text_muted": "#71717A",
+    "accent_live_emerald": "#10B981",
+    "accent_signal_amber": "#F59E0B",
+    "accent_electric_cyan": "#06B6D4",
+    "accent_neon_lime": "#A3E635",
+    "destructive_red": "#EF4444"
+  },
+  "layout_strategy": {
+    "structure": "Split-Pane Studio Workstation (Left: Real-time Live Canvas & Video Output Engine; Right: Tactile Control Rack)",
+    "responsive_grid": "grid-cols-1 lg:grid-cols-12 gap-4 h-full min-h-screen p-4 bg-[#09090B]",
+    "left_pane_span": "lg:col-span-7 xl:col-span-8 flex flex-col gap-4",
+    "right_pane_span": "lg:col-span-5 xl:col-span-4 flex flex-col gap-4 overflow-y-auto max-h-[calc(100vh-2rem)]",
+    "aspect_ratios": [
+      {"label": "16:9 Landscape", "value": "16/9", "aspect_class": "aspect-video"},
+      {"label": "4:3 Classic", "value": "4/3", "aspect_class": "aspect-[4/3]"},
+      {"label": "1:1 Square", "value": "1/1", "aspect_class": "aspect-square"},
+      {"label": "9:16 Vertical", "value": "9/16", "aspect_class": "aspect-[9/16]"},
+      {"label": "21:9 Ultrawide", "value": "21/9", "aspect_class": "aspect-[21/9]"}
+    ]
+  },
+  "key_features_ux_requirements": [
+    {
+      "feature": "Live Canvas Preview (Left Pane)",
+      "details": "High-fps interactive WebGL/HTML5 Canvas with real-time text deformation, position X/Y dragging, scale, stretch X/Y, rotation, blend mode overlays, background color or media clip player.",
+      "header_controls": "Aspect Ratio Selector, Resolution Preset (1080p, 4K, Custom), FPS counter, Fullscreen Clean Output trigger button, Screen-capture/NDI ready toggle."
+    },
+    {
+      "feature": "Text Input System with Semicolon Line-Breaks",
+      "details": "Textarea where typing e.g. 'FEDERICO BLU' displays single-line text, and 'FEDERICO;BLU' automatically formats into 2 distinct lines/chunks on the live visual canvas.",
+      "controls": "Real-time keydown update, line height slider, tracking/letter spacing slider, uppercase toggle, text alignment."
+    },
+    {
+      "feature": "Manual Controls Panel (Tactile Sliders & XY Pad)",
+      "details": "Precision sliders for Position X/Y, Scale, Stretch X (horizontal stretch), Stretch Y (vertical stretch), Rotation Angle (-180 to 180 deg), Skew, Text Color Picker, Background Color Picker, Opacity, Blur/Glow intensity.",
+      "ui_style": "Pro DAW / VJ software styled sliders with numerical value readouts and double-click to reset."
+    },
+    {
+      "feature": "Automatic Kinetic Animation Presets",
+      "details": "One-click live motion triggers: 'Wave Distortion', 'Pulse BPM', 'Kinetic Bounce', 'Glitch Strobe', 'Infinite Zoom', 'Rotational Drift', 'Typographic Jitter', 'Blink Alternator'.",
+      "controls": "Speed/Frequency slider, Amplitude slider, Audio Reactivity/Tempo simulator slider."
+    },
+    {
+      "feature": "Video & GIF Clip Manager",
+      "details": "Upload local video clips (.mp4, .webm) or GIFs. Alternate between video background, text mask fill, or alternating timed sequence with text.",
+      "controls": "Clip Gallery, Upload Dropzone, Speed control, Blend mode (Mix, Multiply, Screen, Difference, Overlay), Alternating interval (seconds/beats)."
+    },
+    {
+      "feature": "Font Selector & Custom Font File Upload",
+      "details": "Integrated Google Fonts switcher with live preview font badges + custom file uploader (.ttf, .otf, .woff2) using FileReader & FontFace API.",
+      "controls": "Font search box, category filter (Display, Sans, Serif, Mono), Font file drag-and-drop zone."
+    },
+    {
+      "feature": "Clean Pop-out Fullscreen Output Window",
+      "details": "Dedicated pop-out window or native HTML5 Fullscreen Canvas mode stripped of all UI controls, ideal for dual-monitor output or capture into Resolume Arena / OBS.",
+      "controls": "Launch Pop-out Output window, Toggle Fullscreen (F11/Button), Lock Output Resolution."
+    },
+    {
+      "feature": "Scene Preset & Deck Save/Load",
+      "details": "Quick-save current visual setup (text, fonts, colors, speeds, clips, stretch parameters) into 6 preset trigger slots (Pad 1-6) or JSON export/import.",
+      "controls": "Trigger Pads 1-6 with keybinds (Keys 1-6), Save Preset, Export Deck JSON."
+    }
+  ],
+  "visual_enhancers": {
+    "glassmorphism": "backdrop-blur-md bg-zinc-900/80 border border-zinc-800",
+    "active_indicator": "inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10B981]",
+    "pro_slider": "accent-emerald-400 bg-zinc-800 h-1.5 rounded-lg border border-zinc-700 cursor-pointer",
+    "tactile_button": "bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700 active:scale-95 transition-all text-xs font-mono font-medium rounded px-3 py-1.5",
+    "active_preset_badge": "bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.2)]",
+    "canvas_vignette_overlay": "pointer-events-none absolute inset-0 shadow-[inset_0_0_80px_rgba(0,0,0,0.8)] border border-zinc-800/80 rounded-lg"
+  },
+  "image_urls": {
+    "visual_references": [
+      {
+        "url": "https://images.unsplash.com/photo-1765445665873-b8dc9a67b66c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwxfHxWSiUyMHZpc3VhbCUyMHN0YWdlJTIwdHlwb2dyYXBoeSUyMGRhcmslMjBjb25jZXJ0JTIwYWJzdHJhY3QlMjBraW5ldGljJTIwdGV4dHxlbnwwfHx8fDE3OTA3MDc2MjJ8MA&ixlib=rb-4.1.0&q=85",
+        "category": "abstract_kinetic_text",
+        "description": "Distorted kinetic text on dark background for default visual preset card"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1519736927049-de9d69a15bb3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHw0fHxWSiUyMHZpc3VhbCUyMHN0YWdlJTIwdHlwb2dyYXBoeSUyMGRhcmslMjBjb25jZXJ0JTIwYWJzdHJhY3QlMjBraW5ldGljJTIwdGV4dHxlbnwwfHx8fDE3OTA3MDc2MjJ8MA&ixlib=rb-4.1.0&q=85",
+        "category": "stage_vj_performance",
+        "description": "Live concert visual stage backdrop reference for Resolume output demo mode"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Use JavaScript React components (.js / .jsx), NOT TypeScript (.tsx).",
+    "Build a high-performance live visual tool inspired by Resolume Arena, TouchDesigner, and Ableton Live dark interfaces.",
+    "Implement Canvas-based real-time manipulation using HTML5 Canvas 2D or CSS 3D matrix transforms to guarantee 60fps text stretch, position, rotation, glitching, color shifting, and video blending.",
+    "Parse semicolon ';' in the text input to split phrases into stacked multi-line text blocks dynamically.",
+    "Support full aspect ratio toggles (16:9, 4:3, 1:1, 9:16) with clear aspect containers and fullscreen popup preview.",
+    "Include live preset hotkeys (1-6) to trigger scene states instantly during live performances.",
+    "Provide a clean fullscreen output mode that opens a popup/fullscreen window without controls for direct capture into Resolume Arena or OBS.",
+    "Add data-testid attributes to all controls, inputs, buttons, sliders, and tab selectors."
+  ],
+  "testing_requirements": {
+    "data_testid_convention": "kebab-case, e.g., data-testid='text-input-field', data-testid='aspect-ratio-16-9-button', data-testid='stretch-x-slider', data-testid='preset-wave-button', data-testid='fullscreen-output-button'"
+  }
+}
