@@ -23,6 +23,14 @@ body {
   color: #000;
 }
 
+@keyframes vjFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.vj-fade {
+  animation: vjFade 0.28s ease-in-out;
+}
+
 /* Pro slider */
 .vj-slider {
   -webkit-appearance: none;

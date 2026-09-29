@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ProSlider } from "@/components/ProSlider";
 import GridStage from "@/components/GridStage";
 import { ASPECTS } from "@/lib/render";
-import { PALETTES, GRID_FONTS, defaultGridConfig, deriveTokens, buildScene, randomRatios, mutateRatios, topologyWeights } from "@/lib/grid";
+import { GRID_FONTS, defaultGridConfig, deriveTokens, buildScene, randomRatios, mutateRatios, topologyWeights } from "@/lib/grid";
 
 export default function GridStudio() {
   const [config, setConfig] = useState(defaultGridConfig);
@@ -51,13 +51,12 @@ export default function GridStudio() {
       stepRef.current++;
       return mutateRatios(base, k, config.sizeVar, weightsRef.current);
     });
-    setConfig((c) => (c.flipOnCut ? { ...c, invert: !c.invert } : c));
+    setConfig((c) => (c.flipOnCut && Math.random() < 0.35 ? { ...c, invert: !c.invert } : c));
   }, [config.count, config.sizeVar, config.resizeMode, config.flipOnCut]);
   const cutRef = useRef(cut);
   cutRef.current = cut;
 
   const restructure = useCallback(() => setTopoSeed((s) => s + 1), []);
-  const setPalette = (key) => { update({ palette: key }); setTopoSeed((s) => s + 1); };
 
   // Lightweight config for the per-beat broadcast (media data URLs are sent separately, once).
   const lightConfig = useMemo(
@@ -158,8 +157,16 @@ export default function GridStudio() {
   useEffect(() => () => stopMic(), [stopMic]);
 
   const onFiles = async (files) => {
-    const valid = Array.from(files).filter((f) => f.type.startsWith("video") || f.type.startsWith("image"));
+    const MB = 1024 * 1024;
+    const arr = Array.from(files).filter((f) => f.type.startsWith("video") || f.type.startsWith("image"));
+    const valid = [];
+    for (const f of arr) {
+      if (f.size > 40 * MB) { toast.error(`${f.name}: troppo pesante (${(f.size / MB).toFixed(1)}MB, max 40MB) — saltato`); continue; }
+      valid.push(f);
+    }
     if (!valid.length) return;
+    const heavy = valid.filter((f) => f.size > 8 * MB);
+    if (heavy.length) toast(`Clip pesante caricata (${(heavy[0].size / MB).toFixed(1)}MB) — per un live fluido usa clip brevi e leggere`);
     const added = await Promise.all(
       valid.map((f) => new Promise((res) => {
         const r = new FileReader();
@@ -172,7 +179,7 @@ export default function GridStudio() {
     if (!clips.length) { toast.error("Impossibile leggere il file"); return; }
     setConfig((c) => ({ ...c, media: { clips: [...c.media.clips, ...clips] } }));
     setTopoSeed((s) => s + 1);
-    toast.success(`${clips.length} media aggiunto — appare nelle celle`);
+    toast.success(`${clips.length} media aggiunto — appare in un riquadro`);
   };
   const removeClip = (id) => { setConfig((c) => ({ ...c, media: { clips: c.media.clips.filter((x) => x.id !== id) } })); setTopoSeed((s) => s + 1); };
 
@@ -275,18 +282,17 @@ export default function GridStudio() {
               </div>
             </div>
 
-            {/* Palette */}
+            {/* Colours */}
             <div className="space-y-1.5">
-              <span className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">Palette</span>
-              <div className="grid grid-cols-3 gap-2">
-                {Object.entries(PALETTES).map(([key, p]) => (
-                  <button key={key} data-testid={`grid-palette-${key}`} onClick={() => setPalette(key)}
-                    className={`flex items-center justify-center gap-1.5 rounded border px-2 py-2 font-mono text-[10px] transition-all ${config.palette === key ? "border-emerald-500/50 bg-emerald-500/10 text-zinc-100" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}>
-                    <span className="h-3 w-3 rounded-sm border border-zinc-600" style={{ background: p.fg }} />
-                    {p.label}
-                  </button>
-                ))}
+              <span className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">Colori (2 tinte)</span>
+              <div className="grid grid-cols-2 gap-3">
+                <ColorPick label="Colore 1 · sfondo" testId="grid-color1-picker" value={config.color1} onChange={(v) => update({ color1: v })} />
+                <ColorPick label="Colore 2 · ink" testId="grid-color2-picker" value={config.color2} onChange={(v) => update({ color2: v })} />
               </div>
+              <button data-testid="grid-swap-colors" onClick={() => update({ color1: config.color2, color2: config.color1 })}
+                className="w-full rounded border border-zinc-700 bg-zinc-800 py-1.5 font-mono text-[10px] uppercase tracking-wider text-zinc-400 transition-all hover:bg-zinc-700">
+                Scambia colori
+              </button>
             </div>
 
             <div className="grid grid-cols-3 gap-2">
@@ -329,6 +335,19 @@ export default function GridStudio() {
             </button>
           </div>
         </aside>
+      </div>
+    </div>
+  );
+}
+
+function ColorPick({ label, value, onChange, testId }) {
+  return (
+    <div className="space-y-1.5">
+      <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">{label}</span>
+      <div className="flex items-center gap-2 rounded border border-zinc-700 bg-zinc-900/80 px-2 py-1.5">
+        <input type="color" data-testid={testId} value={value} onChange={(e) => onChange(e.target.value)}
+          className="h-6 w-8 cursor-pointer rounded border-0 bg-transparent p-0" />
+        <span className="font-mono text-[11px] uppercase text-zinc-300">{value}</span>
       </div>
     </div>
   );

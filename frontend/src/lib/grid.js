@@ -1,15 +1,7 @@
 // Generative broken-grid engine.
 // Topology (BSP tree) + content assignment are STABLE per topoSeed. On a beat/cut only the
-// split ratios morph (cells grow/shrink in place). Ratios are managed by the studio so we can
-// morph ALL of them or only a few at a time (progressive mode). Cells never swap content or
-// position on a cut — a reshuffle happens only when topoSeed changes (palette / Restructure /
-// complexity / media change).
-
-export const PALETTES = {
-  bw: { bg: "#FFFFFF", fg: "#0A0A0A", label: "Nero/Bianco" },
-  blue: { bg: "#FFFFFF", fg: "#1E32FF", label: "Blu/Bianco" },
-  red: { bg: "#FFFFFF", fg: "#FF1E1E", label: "Rosso/Bianco" },
-};
+// split ratios morph (cells grow/shrink in place). Colours are defined by two free RGB colours
+// (color1 = background, color2 = ink/accent); images are auto-converted to those two tones.
 
 export const GRID_FONTS = ["Archivo Black", "Anton", "Bebas Neue", "Unbounded", "Syne", "Space Grotesk"];
 
@@ -17,7 +9,8 @@ export const defaultGridConfig = {
   text: "303 MTL PLUGIN",
   metaText: "303MTLPLUGIN;POLYAMOR;124 BPM;IDX-949",
   font: "Archivo Black",
-  palette: "blue",
+  color1: "#FFFFFF",
+  color2: "#1E32FF",
   invert: false,
   flipOnCut: true,
   wrap: false,
@@ -31,9 +24,9 @@ export const defaultGridConfig = {
   media: { clips: [] },
 };
 
-export function effectivePalette(key, invert) {
-  const p = PALETTES[key] || PALETTES.bw;
-  return invert ? { bg: p.fg, fg: p.bg } : { bg: p.bg, fg: p.fg };
+// color1 = background, color2 = foreground/ink. invert swaps them.
+export function effectivePalette(color1, color2, invert) {
+  return invert ? { bg: color2, fg: color1 } : { bg: color1, fg: color2 };
 }
 
 export function deriveTokens(text, wrap) {
@@ -72,7 +65,6 @@ function buildTopology(seed, count) {
   return root;
 }
 
-// Base rects with a fixed spread (used only for stable content ordering).
 function computeBaseRects(tree, seed) {
   const rand = rng(Math.imul(seed, 40503) + 7);
   const out = {};
@@ -85,7 +77,6 @@ function computeBaseRects(tree, seed) {
   return out;
 }
 
-// Live rects from an explicit ratios array (positional, pre-order over internal nodes).
 function computeRectsFromRatios(tree, ratios) {
   const out = {};
   let k = 0;
@@ -99,7 +90,6 @@ function computeRectsFromRatios(tree, ratios) {
   return out;
 }
 
-// sizeVar 1..10 → ratio spread around 0.5 (mild → strong size differences).
 export function ratioSpread(sizeVar) {
   return 0.12 + ((Math.max(1, Math.min(10, sizeVar)) - 1) / 9) * 0.62;
 }
@@ -109,8 +99,6 @@ export function randomRatios(count, sizeVar) {
   for (let i = 0; i < count - 1; i++) out.push(0.5 - s / 2 + Math.random() * s);
   return out;
 }
-// Change only `k` ratios (progressive mode). When leaf-weights are provided, prefer the
-// internal splits that affect the FEWEST cells so "a couple at a time" is visible.
 export function mutateRatios(ratios, k, sizeVar, weights) {
   const s = ratioSpread(sizeVar);
   const out = ratios.slice();
@@ -123,8 +111,6 @@ export function mutateRatios(ratios, k, sizeVar, weights) {
   for (let i = 0; i < Math.min(k, idxs.length); i++) out[idxs[i]] = 0.5 - s / 2 + Math.random() * s;
   return out;
 }
-
-// Leaves under each internal node, in the same pre-order as the ratios array.
 export function topologyWeights(topoSeed, count) {
   const tree = buildTopology(topoSeed, count);
   const weights = [];
@@ -139,27 +125,23 @@ export function topologyWeights(topoSeed, count) {
   return weights;
 }
 
+// One media clip = one rectangle (media occupy the SMALLEST cells; text keeps the larger ones).
 function assignContent(topoSeed, baseCells, tokens, media) {
   const rand = rng(Math.imul(topoSeed, 22695) + 13);
   const n = baseCells.length;
   const order = [...baseCells.keys()].sort((a, b) => baseCells[b].w * baseCells[b].h - baseCells[a].w * baseCells[a].h);
   const assign = new Array(n);
   const metaIdx = order[Math.min(n - 1, 1 + Math.floor(rand() * Math.max(1, n - 2)))];
-  let ti = 0;
-  for (const idx of order) {
-    if (idx === metaIdx) continue;
-    const useMedia = media.length > 0 && (ti >= tokens.length || rand() < 0.4);
-    if (useMedia) assign[idx] = { type: "media", mediaId: media[Math.floor(rand() * media.length)].id };
+  const nonMeta = order.filter((i) => i !== metaIdx);
+  const mediaCount = Math.min(media.length, nonMeta.length);
+  const mediaSet = new Set(nonMeta.slice(nonMeta.length - mediaCount));
+  let mi = 0, ti = 0;
+  for (const idx of nonMeta) {
+    if (mediaSet.has(idx)) { assign[idx] = { type: "media", mediaId: media[mi % media.length].id }; mi++; }
     else { assign[idx] = { type: "text", token: tokens[ti % Math.max(1, tokens.length)] || "303" }; ti++; }
   }
   assign[metaIdx] = { type: "meta" };
-  // Guarantee media is actually used when clips exist (convert the smallest text cell).
-  if (media.length > 0 && !assign.some((x) => x && x.type === "media")) {
-    const textIdxs = order.filter((i) => assign[i] && assign[i].type === "text");
-    const target = textIdxs[textIdxs.length - 1];
-    if (target != null) assign[target] = { type: "media", mediaId: media[0].id };
-  }
-  // Alternate colors: guarantee a balanced ~50% mix (not all cells the same color).
+  // Alternate colours: balanced ~50% mix.
   const inds = [...assign.keys()];
   for (let i = inds.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [inds[i], inds[j]] = [inds[j], inds[i]]; }
   const half = Math.floor(n / 2);
