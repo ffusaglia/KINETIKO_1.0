@@ -16,7 +16,6 @@ function textWidthAt1px(text, font) {
   c.font = `900 100px ${font}`;
   return c.measureText(text || " ").width / 100;
 }
-// Greedy line-break at a given font size; returns lines + widest line.
 function layoutLines(words, fontSize, maxW, font) {
   const c = ctx();
   c.font = `900 ${fontSize}px ${font}`;
@@ -34,7 +33,6 @@ function layoutLines(words, fontSize, maxW, font) {
   for (const l of lines) widest = Math.max(widest, c.measureText(l).width);
   return { lines, widest };
 }
-// Largest font size that fits the wrapped words inside w×h.
 function fitWrapped(words, w, h, font) {
   let lo = 6, hi = Math.max(8, Math.floor(h)), best = { fontSize: 6, lines: words };
   while (lo <= hi) {
@@ -45,6 +43,16 @@ function fitWrapped(words, w, h, font) {
     else hi = mid - 1;
   }
   return best;
+}
+// Fit explicit lines (no re-wrapping) into w×h — used by the meta cell.
+function fitLines(lines, w, h, font) {
+  const c = ctx();
+  c.font = `900 100px ${font}`;
+  let maxRatio = 0.0001;
+  for (const l of lines) maxRatio = Math.max(maxRatio, c.measureText(l).width / 100);
+  const byW = (w * 0.92) / maxRatio;
+  const byH = (h * 0.9) / (lines.length * 1.04);
+  return Math.max(6, Math.min(byW, byH));
 }
 
 export default function GridStage({ scene, config, clean = false }) {
@@ -68,7 +76,6 @@ export default function GridStage({ scene, config, clean = false }) {
 
   const eff = effectivePalette(config.palette, config.invert);
   const clips = config.media?.clips || [];
-  const idxOverride = (config.idx || "").trim().replace(/^idx-?/i, "");
 
   return (
     <div ref={wrapRef} className="relative flex h-full w-full items-center justify-center overflow-hidden bg-black">
@@ -80,7 +87,7 @@ export default function GridStage({ scene, config, clean = false }) {
           return (
             <div key={i} className="absolute" style={{ ...rect, transition: `left ${DUR} ${EASE}, top ${DUR} ${EASE}, width ${DUR} ${EASE}, height ${DUR} ${EASE}` }}>
               <div className="absolute overflow-hidden" style={{ inset: "1.5px" }}>
-                <CellContent a={a} w={rect.width} h={rect.height} eff={eff} config={config} scene={scene} clips={clips} idxOverride={idxOverride} />
+                <CellContent a={a} w={rect.width} h={rect.height} eff={eff} config={config} clips={clips} />
               </div>
             </div>
           );
@@ -91,19 +98,21 @@ export default function GridStage({ scene, config, clean = false }) {
   );
 }
 
-function CellContent({ a, w, h, eff, config, scene, clips, idxOverride }) {
+function CellContent({ a, w, h, eff, config, clips }) {
+  const bg = a.inv ? eff.fg : eff.bg;
+  const fg = a.inv ? eff.bg : eff.fg;
+  const fam = `"${config.font}", sans-serif`;
+
   if (a.type === "meta") {
-    const bg = a.inv ? eff.fg : eff.bg;
-    const fg = a.inv ? eff.bg : eff.fg;
-    const fs = Math.max(9, Math.min(h * 0.12, w * 0.075));
+    const lines = (config.metaText || "").split(";").map((s) => s.trim().toUpperCase()).filter(Boolean);
+    const fs = fitLines(lines.length ? lines : [" "], w, h, fam);
     return (
-      <div className="flex h-full w-full flex-col justify-start p-[3%]" style={{ background: bg, color: fg, transition: COLOR_TR }}>
-        <div className="font-mono font-bold leading-tight" style={{ fontSize: fs }}>
-          <div>{config.title}</div>
-          <div>{config.subtitle}</div>
-          <div>{config.metaBpm} BPM</div>
-          <div>{idxOverride ? `IDX-${idxOverride}` : scene.idxCode}</div>
-        </div>
+      <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden text-center" style={{ background: bg, transition: COLOR_TR }}>
+        {lines.map((line, li) => (
+          <span key={li} style={{ color: fg, fontFamily: fam, fontWeight: 900, fontSize: fs, lineHeight: 1.02, letterSpacing: "-0.02em", whiteSpace: "nowrap", transition: `font-size ${DUR} ${EASE}, color 0.4s ease-in-out` }}>
+            {line}
+          </span>
+        ))}
       </div>
     );
   }
@@ -124,13 +133,8 @@ function CellContent({ a, w, h, eff, config, scene, clips, idxOverride }) {
   }
 
   // text
-  const bg = a.inv ? eff.fg : eff.bg;
-  const fg = a.inv ? eff.bg : eff.fg;
-  const fam = `"${config.font}", sans-serif`;
   const words = a.token.split(" ").filter(Boolean);
-  const multi = words.length > 1;
-
-  if (multi) {
+  if (words.length > 1) {
     const fit = fitWrapped(words, w, h, fam);
     return (
       <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden text-center" style={{ background: bg, transition: COLOR_TR }}>
@@ -150,14 +154,7 @@ function CellContent({ a, w, h, eff, config, scene, clips, idxOverride }) {
   const fontSize = Math.max(6, Math.min((availLong * 0.94) / perPx, availThick * 0.82));
   return (
     <div className="flex h-full w-full items-center justify-center overflow-hidden" style={{ background: bg, transition: COLOR_TR }}>
-      <span
-        style={{
-          color: fg, fontFamily: fam, fontWeight: 900, fontSize, lineHeight: 0.82,
-          letterSpacing: "-0.03em", textTransform: "uppercase", whiteSpace: "nowrap",
-          transform: vertical ? "rotate(-90deg)" : "none", transformOrigin: "center",
-          transition: `font-size ${DUR} ${EASE}, color 0.4s ease-in-out`,
-        }}
-      >
+      <span style={{ color: fg, fontFamily: fam, fontWeight: 900, fontSize, lineHeight: 0.82, letterSpacing: "-0.03em", textTransform: "uppercase", whiteSpace: "nowrap", transform: vertical ? "rotate(-90deg)" : "none", transformOrigin: "center", transition: `font-size ${DUR} ${EASE}, color 0.4s ease-in-out` }}>
         {a.token}
       </span>
     </div>

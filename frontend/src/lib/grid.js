@@ -1,8 +1,9 @@
 // Generative broken-grid engine.
-// Topology (BSP tree) + content assignment are STABLE per topoSeed: on a beat/cut only the
-// split ratios morph (cells grow/shrink in place, ease-in-out via CSS). Cells never swap
-// content or position on a cut — a full reshuffle happens only when topoSeed changes
-// (palette change, manual Restructure, or complexity change).
+// Topology (BSP tree) + content assignment are STABLE per topoSeed. On a beat/cut only the
+// split ratios morph (cells grow/shrink in place). Ratios are managed by the studio so we can
+// morph ALL of them or only a few at a time (progressive mode). Cells never swap content or
+// position on a cut — a reshuffle happens only when topoSeed changes (palette / Restructure /
+// complexity / media change).
 
 export const PALETTES = {
   bw: { bg: "#FFFFFF", fg: "#0A0A0A", label: "Nero/Bianco" },
@@ -10,21 +11,11 @@ export const PALETTES = {
   red: { bg: "#FFFFFF", fg: "#FF1E1E", label: "Rosso/Bianco" },
 };
 
-export const GRID_FONTS = [
-  "Archivo Black",
-  "Anton",
-  "Bebas Neue",
-  "Unbounded",
-  "Syne",
-  "Space Grotesk",
-];
+export const GRID_FONTS = ["Archivo Black", "Anton", "Bebas Neue", "Unbounded", "Syne", "Space Grotesk"];
 
 export const defaultGridConfig = {
   text: "303 MTL PLUGIN",
-  title: "303MTLPLUGIN",
-  subtitle: "POLYAMOR",
-  idx: "",
-  metaBpm: 124,
+  metaText: "303MTLPLUGIN;POLYAMOR;124 BPM;IDX-949",
   font: "Archivo Black",
   palette: "blue",
   invert: false,
@@ -33,6 +24,8 @@ export const defaultGridConfig = {
   bpm: 124,
   cutEvery: 2,
   count: 6,
+  sizeVar: 5,
+  resizeMode: "all", // all | progressive
   micSens: 1.35,
   aspect: "16/9",
   media: { clips: [] },
@@ -43,8 +36,6 @@ export function effectivePalette(key, invert) {
   return invert ? { bg: p.fg, fg: p.bg } : { bg: p.bg, fg: p.fg };
 }
 
-// wrap=false → one word per cell (split on spaces + ';'); wrap=true → one segment per ';'
-// (a segment may hold multiple words that wrap onto several lines inside the cell).
 export function deriveTokens(text, wrap) {
   const parts = wrap ? (text || "").split(";") : (text || "").split(/[;\s]+/);
   return parts.map((t) => t.trim()).filter(Boolean).map((t) => t.toUpperCase());
@@ -81,19 +72,53 @@ function buildTopology(seed, count) {
   return root;
 }
 
-function computeRects(tree, ratioSeed) {
-  const rand = rng(Math.imul(ratioSeed, 40503) + 7);
+// Base rects with a fixed spread (used only for stable content ordering).
+function computeBaseRects(tree, seed) {
+  const rand = rng(Math.imul(seed, 40503) + 7);
   const out = {};
   (function rec(node, x, y, w, h) {
     if (node.leaf) { out[node.id] = { x, y, w, h }; return; }
-    const r = 0.28 + rand() * 0.44;
+    const r = 0.32 + rand() * 0.36;
     if (node.dir === "v") { const w1 = w * r; rec(node.a, x, y, w1, h); rec(node.b, x + w1, y, w - w1, h); }
     else { const h1 = h * r; rec(node.a, x, y, w, h1); rec(node.b, x, y + h1, w, h - h1); }
   })(tree, 0, 0, 1, 1);
   return out;
 }
 
-// Stable assignment: seeded only by topoSeed + areas of the base layout (no cutSeed).
+// Live rects from an explicit ratios array (positional, pre-order over internal nodes).
+function computeRectsFromRatios(tree, ratios) {
+  const out = {};
+  let k = 0;
+  (function rec(node, x, y, w, h) {
+    if (node.leaf) { out[node.id] = { x, y, w, h }; return; }
+    const r = ratios[k++];
+    const rr = r == null ? 0.5 : r;
+    if (node.dir === "v") { const w1 = w * rr; rec(node.a, x, y, w1, h); rec(node.b, x + w1, y, w - w1, h); }
+    else { const h1 = h * rr; rec(node.a, x, y, w, h1); rec(node.b, x, y + h1, w, h - h1); }
+  })(tree, 0, 0, 1, 1);
+  return out;
+}
+
+// sizeVar 1..10 → ratio spread around 0.5 (mild → strong size differences).
+export function ratioSpread(sizeVar) {
+  return 0.12 + ((Math.max(1, Math.min(10, sizeVar)) - 1) / 9) * 0.62;
+}
+export function randomRatios(count, sizeVar) {
+  const s = ratioSpread(sizeVar);
+  const out = [];
+  for (let i = 0; i < count - 1; i++) out.push(0.5 - s / 2 + Math.random() * s);
+  return out;
+}
+// Change only `k` ratios (progressive mode) keeping the rest in place.
+export function mutateRatios(ratios, k, sizeVar) {
+  const s = ratioSpread(sizeVar);
+  const out = ratios.slice();
+  const idxs = [...out.keys()];
+  for (let i = idxs.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idxs[i], idxs[j]] = [idxs[j], idxs[i]]; }
+  for (let i = 0; i < Math.min(k, idxs.length); i++) out[idxs[i]] = 0.5 - s / 2 + Math.random() * s;
+  return out;
+}
+
 function assignContent(topoSeed, baseCells, tokens, media) {
   const rand = rng(Math.imul(topoSeed, 22695) + 13);
   const n = baseCells.length;
@@ -108,20 +133,24 @@ function assignContent(topoSeed, baseCells, tokens, media) {
     else { assign[idx] = { type: "text", token: tokens[ti % Math.max(1, tokens.length)] || "303" }; ti++; }
   }
   assign[metaIdx] = { type: "meta" };
-  for (let i = 0; i < n; i++) if (assign[i]) assign[i].inv = rand() < 0.42;
+  // Alternate colors: guarantee a balanced ~50% mix (not all cells the same color).
+  const inds = [...assign.keys()];
+  for (let i = inds.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [inds[i], inds[j]] = [inds[j], inds[i]]; }
+  const half = Math.floor(n / 2);
+  inds.forEach((idx, pos) => { if (assign[idx]) assign[idx].inv = pos < half; });
   return assign;
 }
 
-export function buildScene(topoSeed, cutSeed, count, tokens, media) {
+export function buildScene(topoSeed, count, tokens, media, ratios) {
   const safeTokens = tokens.length ? tokens : ["303"];
   const tree = buildTopology(topoSeed, count);
+  const baseMap = computeBaseRects(tree, topoSeed);
   const baseCells = [];
-  const baseMap = computeRects(tree, topoSeed);
   for (let i = 0; i < count; i++) baseCells[i] = baseMap[i];
   const assign = assignContent(topoSeed, baseCells, safeTokens, media);
-  const liveMap = computeRects(tree, cutSeed);
+  const useRatios = ratios && ratios.length === count - 1 ? ratios : null;
+  const liveMap = useRatios ? computeRectsFromRatios(tree, useRatios) : baseMap;
   const cells = [];
   for (let i = 0; i < count; i++) cells[i] = liveMap[i];
-  const idxNum = 200 + (Math.abs(Math.imul(cutSeed, 7)) % 800);
-  return { cells, assign, idxCode: `IDX-${idxNum}` };
+  return { cells, assign };
 }

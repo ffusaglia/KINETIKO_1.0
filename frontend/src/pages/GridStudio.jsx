@@ -8,12 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ProSlider } from "@/components/ProSlider";
 import GridStage from "@/components/GridStage";
 import { ASPECTS } from "@/lib/render";
-import { PALETTES, GRID_FONTS, defaultGridConfig, deriveTokens, buildScene } from "@/lib/grid";
+import { PALETTES, GRID_FONTS, defaultGridConfig, deriveTokens, buildScene, randomRatios, mutateRatios } from "@/lib/grid";
 
 export default function GridStudio() {
   const [config, setConfig] = useState(defaultGridConfig);
   const [topoSeed, setTopoSeed] = useState(1);
-  const [cutSeed, setCutSeed] = useState(1);
+  const [ratios, setRatios] = useState(() => randomRatios(defaultGridConfig.count, defaultGridConfig.sizeVar));
   const [playing, setPlaying] = useState(false);
   const [micOn, setMicOn] = useState(false);
   const [level, setLevel] = useState(0);
@@ -24,29 +24,38 @@ export default function GridStudio() {
   const tapRef = useRef([]);
   const audioRef = useRef({});
   const sensRef = useRef(config.micSens);
+  const stepRef = useRef(0);
   sensRef.current = config.micSens;
 
   const update = useCallback((patch) => setConfig((c) => ({ ...c, ...patch })), []);
   const tokens = useMemo(() => deriveTokens(config.text, config.wrap), [config.text, config.wrap]);
   const scene = useMemo(
-    () => buildScene(topoSeed, cutSeed, config.count, tokens, config.media.clips),
-    [topoSeed, cutSeed, config.count, tokens, config.media.clips]
+    () => buildScene(topoSeed, config.count, tokens, config.media.clips, ratios),
+    [topoSeed, config.count, tokens, config.media.clips, ratios]
   );
 
-  // Cut = beat event: morph cell sizes only + optional gradual color flip. Never reshuffles cells.
+  // Re-init ratios (fresh layout) whenever topology, cell count or size-variance changes.
+  useEffect(() => { setRatios(randomRatios(config.count, config.sizeVar)); stepRef.current = 0; }, [topoSeed, config.count, config.sizeVar]);
+
+  // Cut = beat event: morph cell sizes (all, or a few at a time in progressive mode) + optional gradual flip.
   const cut = useCallback(() => {
-    setCutSeed((s) => s + 1);
+    setRatios((prev) => {
+      const n = Math.max(1, config.count - 1);
+      const base = prev.length === n ? prev : randomRatios(config.count, config.sizeVar);
+      if (config.resizeMode === "all") return randomRatios(config.count, config.sizeVar);
+      const pattern = [2, 3, n];
+      const k = Math.min(n, pattern[stepRef.current % pattern.length]);
+      stepRef.current++;
+      return mutateRatios(base, k, config.sizeVar);
+    });
     setConfig((c) => (c.flipOnCut ? { ...c, invert: !c.invert } : c));
-  }, []);
+  }, [config.count, config.sizeVar, config.resizeMode, config.flipOnCut]);
   const cutRef = useRef(cut);
   cutRef.current = cut;
 
-  // Manual restructure & complexity change = new topology (cells may re-arrange).
-  const restructure = useCallback(() => { setTopoSeed((s) => s + 1); setCutSeed((s) => s + 1); }, []);
-  // Palette change is the only auto-trigger allowed to re-arrange cells.
+  const restructure = useCallback(() => setTopoSeed((s) => s + 1), []);
   const setPalette = (key) => { update({ palette: key }); setTopoSeed((s) => s + 1); };
 
-  // Broadcast to pop-out output.
   useEffect(() => {
     if (!channelRef.current) channelRef.current = new BroadcastChannel("vj-grid");
     channelRef.current.postMessage({ type: "scene", scene, config });
@@ -59,7 +68,6 @@ export default function GridStudio() {
     return () => ch.removeEventListener("message", onMsg);
   }, [scene, config]);
 
-  // BPM beat loop (disabled while mic reactivity is on).
   useEffect(() => {
     if (!playing || micOn) return;
     let beat = 0;
@@ -91,11 +99,10 @@ export default function GridStudio() {
     if (tapRef.current.length >= 2) {
       const arr = tapRef.current;
       const bpm = Math.round(60000 / ((arr[arr.length - 1] - arr[0]) / (arr.length - 1)));
-      if (bpm >= 40 && bpm <= 300) update({ bpm, metaBpm: bpm });
+      if (bpm >= 40 && bpm <= 300) update({ bpm });
     }
   };
 
-  // Microphone beat reactivity: detects bass transients and triggers a cut on each beat.
   const stopMic = useCallback(() => {
     const a = audioRef.current;
     if (a.raf) cancelAnimationFrame(a.raf);
@@ -210,7 +217,7 @@ export default function GridStudio() {
             {micOn && (
               <div className="space-y-2">
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
-                  <div className="h-full rounded-full bg-emerald-500 transition-[width] duration-75" style={{ width: `${level * 100}%` }} data-testid="grid-audio-level" />
+                  <div className="h-full rounded-full bg-emerald-500 transition-[width] duration-75" style={{ width: `${Math.max(3, level * 100)}%` }} data-testid="grid-audio-level" />
                 </div>
                 <ProSlider label="Sensibilità audio" testId="grid-sens-slider" value={config.micSens} min={1.05} max={2.5} step={0.05} reset={1.35} onChange={(v) => update({ micSens: v })} unit="x" />
                 <p className="font-mono text-[10px] text-zinc-500">Valori più bassi = più reattivo ai beat.</p>
@@ -223,16 +230,27 @@ export default function GridStudio() {
                 className="resize-none border-zinc-700 bg-zinc-900/80 font-mono text-sm text-zinc-100 focus-visible:ring-emerald-500/40" />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <TextField label="Titolo meta" testId="grid-title-input" value={config.title} onChange={(v) => update({ title: v })} />
-              <TextField label="Sottotitolo" testId="grid-subtitle-input" value={config.subtitle} onChange={(v) => update({ subtitle: v })} />
+            <div className="space-y-2">
+              <label className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">Testo info (meta) · ; = a capo</label>
+              <Textarea data-testid="grid-meta-input" value={config.metaText} onChange={(e) => update({ metaText: e.target.value })} rows={2} spellCheck={false}
+                className="resize-none border-zinc-700 bg-zinc-900/80 font-mono text-sm text-zinc-100 focus-visible:ring-emerald-500/40" placeholder="POLYAMOR;124 BPM;IDX-949" />
             </div>
 
-            <TextField label="Codice IDX (vuoto = automatico)" testId="grid-idx-input" value={config.idx} onChange={(v) => update({ idx: v })} placeholder="es. 949" />
-
-            <ProSlider label="BPM" testId="grid-bpm-slider" value={config.bpm} min={40} max={220} step={1} reset={124} onChange={(v) => update({ bpm: v, metaBpm: v })} />
+            <ProSlider label="BPM" testId="grid-bpm-slider" value={config.bpm} min={40} max={220} step={1} reset={124} onChange={(v) => update({ bpm: v })} />
             <ProSlider label="Cut ogni N beat" testId="grid-cut-slider" value={config.cutEvery} min={1} max={8} step={1} reset={2} onChange={(v) => update({ cutEvery: v })} />
             <ProSlider label="Complessità (celle)" testId="grid-count-slider" value={config.count} min={3} max={12} step={1} reset={6} onChange={(v) => update({ count: v })} />
+            <ProSlider label="Randomicità dimensioni" testId="grid-sizevar-slider" value={config.sizeVar} min={1} max={10} step={1} reset={5} onChange={(v) => update({ sizeVar: v })} />
+
+            {/* Resize mode */}
+            <div className="space-y-1.5">
+              <span className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">Modalità resize</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button data-testid="grid-resize-all" onClick={() => update({ resizeMode: "all" })}
+                  className={`rounded px-2 py-2 font-mono text-[10px] transition-all ${config.resizeMode === "all" ? "border border-emerald-500/50 bg-emerald-500/20 text-emerald-400" : "border border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}>Tutte insieme</button>
+                <button data-testid="grid-resize-progressive" onClick={() => update({ resizeMode: "progressive" })}
+                  className={`rounded px-2 py-2 font-mono text-[10px] transition-all ${config.resizeMode === "progressive" ? "border border-emerald-500/50 bg-emerald-500/20 text-emerald-400" : "border border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}>Progressivo</button>
+              </div>
+            </div>
 
             {/* Palette */}
             <div className="space-y-1.5">
@@ -282,23 +300,13 @@ export default function GridStudio() {
               ))}
             </div>
 
-            <button data-testid="grid-reset-button" onClick={() => { stopMic(); setConfig(defaultGridConfig); setTopoSeed(1); setCutSeed(1); setPlaying(false); }}
+            <button data-testid="grid-reset-button" onClick={() => { stopMic(); setConfig(defaultGridConfig); setTopoSeed(1); setRatios(randomRatios(defaultGridConfig.count, defaultGridConfig.sizeVar)); setPlaying(false); }}
               className="w-full rounded border border-zinc-700 bg-zinc-800 py-2 font-mono text-[11px] uppercase tracking-wider text-zinc-300 transition-all hover:bg-zinc-700">
               Reset
             </button>
           </div>
         </aside>
       </div>
-    </div>
-  );
-}
-
-function TextField({ label, value, onChange, testId, placeholder }) {
-  return (
-    <div className="space-y-1.5">
-      <span className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">{label}</span>
-      <input data-testid={testId} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded border border-zinc-700 bg-zinc-900/80 px-2 py-1.5 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-emerald-500/50" />
     </div>
   );
 }

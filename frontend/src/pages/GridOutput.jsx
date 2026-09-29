@@ -5,7 +5,7 @@ import { defaultGridConfig, buildScene, deriveTokens } from "@/lib/grid";
 // Clean grid output window for capture into Resolume / OBS.
 export default function GridOutput() {
   const [state, setState] = useState({
-    scene: buildScene(1, 1, defaultGridConfig.count, deriveTokens(defaultGridConfig.text, defaultGridConfig.wrap), []),
+    scene: buildScene(1, defaultGridConfig.count, deriveTokens(defaultGridConfig.text, defaultGridConfig.wrap), [], null),
     config: defaultGridConfig,
   });
   const chRef = useRef(null);
