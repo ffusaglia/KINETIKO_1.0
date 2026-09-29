@@ -61,7 +61,7 @@ function fitLines(lines, w, h, font) {
   return Math.max(6, Math.min(byW, byH));
 }
 
-export default function GridStage({ scene, config, clean = false }) {
+export default function GridStage({ scene, config, clean = false, dynamic = false }) {
   const wrapRef = useRef(null);
   const [dims, setDims] = useState({ w: 0, h: 0 });
   const [, setFontTick] = useState(0);
@@ -112,9 +112,9 @@ export default function GridStage({ scene, config, clean = false }) {
           if (!a || !c) return null;
           const rect = { left: c.x * dims.w, top: c.y * dims.h, width: c.w * dims.w, height: c.h * dims.h };
           return (
-            <div key={i} className="absolute" style={{ ...rect, transition: `left ${DUR} ${EASE}, top ${DUR} ${EASE}, width ${DUR} ${EASE}, height ${DUR} ${EASE}` }}>
+            <div key={i} className="absolute" style={{ ...rect, transition: dynamic ? "none" : `left ${DUR} ${EASE}, top ${DUR} ${EASE}, width ${DUR} ${EASE}, height ${DUR} ${EASE}` }}>
               <div className="absolute overflow-hidden" style={{ inset: "1.5px" }}>
-                <CellContent a={a} w={rect.width} h={rect.height} eff={eff} config={config} clips={clips} />
+                <CellContent a={a} w={rect.width} h={rect.height} eff={eff} config={config} clips={clips} dynamic={dynamic} />
               </div>
             </div>
           );
@@ -125,10 +125,11 @@ export default function GridStage({ scene, config, clean = false }) {
   );
 }
 
-function CellContent({ a, w, h, eff, config, clips }) {
+function CellContent({ a, w, h, eff, config, clips, dynamic }) {
   const bg = a.inv ? eff.fg : eff.bg;
   const fg = a.inv ? eff.bg : eff.fg;
   const fam = `"${config.font}", sans-serif`;
+  const fsTr = dynamic ? "color 0.4s ease-in-out" : `font-size ${DUR} ${EASE}, color 0.4s ease-in-out`;
 
   if (a.type === "meta") {
     const lines = (config.metaText || "").split(";").map((s) => s.trim().toUpperCase()).filter(Boolean);
@@ -136,7 +137,7 @@ function CellContent({ a, w, h, eff, config, clips }) {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden text-center" style={{ background: bg, transition: COLOR_TR }}>
         {lines.map((line, li) => (
-          <span key={li} style={{ color: fg, fontFamily: fam, fontWeight: 900, fontSize: fs, lineHeight: 1.02, letterSpacing: "-0.02em", whiteSpace: "nowrap", transition: `font-size ${DUR} ${EASE}, color 0.4s ease-in-out` }}>
+          <span key={li} style={{ color: fg, fontFamily: fam, fontWeight: 900, fontSize: fs, lineHeight: 1.02, letterSpacing: "-0.02em", whiteSpace: "nowrap", transition: fsTr }}>
             {line}
           </span>
         ))}
@@ -166,7 +167,7 @@ function CellContent({ a, w, h, eff, config, clips }) {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden text-center" style={{ background: bg, transition: COLOR_TR }}>
         {fit.lines.map((line, li) => (
-          <span key={li} style={{ color: fg, fontFamily: fam, fontWeight: 900, fontSize: fit.fontSize, lineHeight: 0.98, letterSpacing: "-0.03em", textTransform: "uppercase", whiteSpace: "nowrap", transition: `font-size ${DUR} ${EASE}, color 0.4s ease-in-out` }}>
+          <span key={li} style={{ color: fg, fontFamily: fam, fontWeight: 900, fontSize: fit.fontSize, lineHeight: 0.98, letterSpacing: "-0.03em", textTransform: "uppercase", whiteSpace: "nowrap", transition: fsTr }}>
             {line}
           </span>
         ))}
@@ -182,7 +183,7 @@ function CellContent({ a, w, h, eff, config, clips }) {
   return (
     <div className="flex h-full w-full items-center justify-center overflow-hidden" style={{ background: bg, transition: COLOR_TR }}>
       <span key={vertical ? "v" : "h"} className="vj-fade"
-        style={{ color: fg, fontFamily: fam, fontWeight: 900, fontSize, lineHeight: 0.82, letterSpacing: "-0.03em", textTransform: "uppercase", whiteSpace: "nowrap", transform: vertical ? "rotate(-90deg)" : "none", transformOrigin: "center", transition: `font-size ${DUR} ${EASE}, color 0.4s ease-in-out` }}>
+        style={{ color: fg, fontFamily: fam, fontWeight: 900, fontSize, lineHeight: 0.82, letterSpacing: "-0.03em", textTransform: "uppercase", whiteSpace: "nowrap", transform: vertical ? "rotate(-90deg)" : "none", transformOrigin: "center", transition: fsTr }}>
         {a.token}
       </span>
     </div>

@@ -34,7 +34,7 @@ export default function GridOutput() {
 
   return (
     <div className="h-screen w-screen bg-black">
-      <GridStage scene={state.scene} config={state.config} clean />
+      <GridStage scene={state.scene} config={state.config} clean dynamic={state.config?.dynamic} />
     </div>
   );
 }

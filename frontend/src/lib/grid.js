@@ -19,6 +19,7 @@ export const defaultGridConfig = {
   count: 6,
   sizeVar: 5,
   resizeMode: "all", // all | progressive
+  dynamic: false,
   micSens: 1.35,
   aspect: "16/9",
   media: { clips: [] },

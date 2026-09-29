@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { Maximize2, ExternalLink, Shuffle, Play, Pause, Upload, Trash2, Zap, Mic, MicOff } from "lucide-react";
+import { Maximize2, ExternalLink, Shuffle, Play, Pause, Upload, Trash2, Zap, Mic, MicOff, Activity } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ProSlider } from "@/components/ProSlider";
 import GridStage from "@/components/GridStage";
 import { ASPECTS } from "@/lib/render";
-import { GRID_FONTS, defaultGridConfig, deriveTokens, buildScene, randomRatios, mutateRatios, topologyWeights } from "@/lib/grid";
+import { GRID_FONTS, defaultGridConfig, deriveTokens, buildScene, randomRatios, mutateRatios, topologyWeights, ratioSpread } from "@/lib/grid";
 
 export default function GridStudio() {
   const [config, setConfig] = useState(defaultGridConfig);
@@ -25,36 +24,64 @@ export default function GridStudio() {
   const audioRef = useRef({});
   const sensRef = useRef(config.micSens);
   const stepRef = useRef(0);
+  const lastBcRef = useRef(0);
   sensRef.current = config.micSens;
 
   const update = useCallback((patch) => setConfig((c) => ({ ...c, ...patch })), []);
-  const tokens = useMemo(() => deriveTokens(config.text, config.wrap), [config.text, config.wrap]);
-  const weights = useMemo(() => topologyWeights(topoSeed, config.count), [topoSeed, config.count]);
+  const tokens = useMemo(() => deriveTokens(config.text, false), [config.text]);
+  // Auto-expand cell count so every word + every uploaded clip + meta gets its own rectangle.
+  const cellCount = useMemo(
+    () => Math.min(24, Math.max(config.count, tokens.length + config.media.clips.length + 1)),
+    [config.count, tokens.length, config.media.clips.length]
+  );
+  const weights = useMemo(() => topologyWeights(topoSeed, cellCount), [topoSeed, cellCount]);
   const weightsRef = useRef(weights);
   weightsRef.current = weights;
   const scene = useMemo(
-    () => buildScene(topoSeed, config.count, tokens, config.media.clips, ratios),
-    [topoSeed, config.count, tokens, config.media.clips, ratios]
+    () => buildScene(topoSeed, cellCount, tokens, config.media.clips, ratios),
+    [topoSeed, cellCount, tokens, config.media.clips, ratios]
   );
 
-  // Re-init ratios (fresh layout) whenever topology, cell count or size-variance changes.
-  useEffect(() => { setRatios(randomRatios(config.count, config.sizeVar)); stepRef.current = 0; }, [topoSeed, config.count, config.sizeVar]);
+  // Re-init ratios whenever topology, cell count or size-variance changes.
+  useEffect(() => { setRatios(randomRatios(cellCount, config.sizeVar)); stepRef.current = 0; }, [topoSeed, cellCount, config.sizeVar]);
 
-  // Cut = beat event: morph cell sizes (all, or a few at a time in progressive mode) + optional gradual flip.
+  // Cut = beat event: morph cell sizes (skipped when Dynamic movement drives them) + random flip.
   const cut = useCallback(() => {
-    setRatios((prev) => {
-      const n = Math.max(1, config.count - 1);
-      const base = prev.length === n ? prev : randomRatios(config.count, config.sizeVar);
-      if (config.resizeMode === "all") return randomRatios(config.count, config.sizeVar);
-      const pattern = [2, 3, n];
-      const k = Math.min(n, pattern[stepRef.current % pattern.length]);
-      stepRef.current++;
-      return mutateRatios(base, k, config.sizeVar, weightsRef.current);
-    });
+    if (!config.dynamic) {
+      setRatios((prev) => {
+        const n = Math.max(1, cellCount - 1);
+        const base = prev.length === n ? prev : randomRatios(cellCount, config.sizeVar);
+        if (config.resizeMode === "all") return randomRatios(cellCount, config.sizeVar);
+        const pattern = [2, 3, n];
+        const k = Math.min(n, pattern[stepRef.current % pattern.length]);
+        stepRef.current++;
+        return mutateRatios(base, k, config.sizeVar, weightsRef.current);
+      });
+    }
     setConfig((c) => (c.flipOnCut && Math.random() < 0.35 ? { ...c, invert: !c.invert } : c));
-  }, [config.count, config.sizeVar, config.resizeMode, config.flipOnCut]);
+  }, [cellCount, config.sizeVar, config.resizeMode, config.flipOnCut, config.dynamic]);
   const cutRef = useRef(cut);
   cutRef.current = cut;
+
+  // Dynamic movement: continuous "accordion / breathing" resize, decoupled from BPM, at rAF rate.
+  useEffect(() => {
+    if (!config.dynamic) return;
+    const n = Math.max(1, cellCount - 1);
+    const amp = ratioSpread(config.sizeVar) / 2;
+    const phases = Array.from({ length: n }, () => Math.random() * Math.PI * 2);
+    const freqs = Array.from({ length: n }, () => 0.18 + Math.random() * 0.5);
+    const t0 = performance.now();
+    let raf;
+    const loop = (now) => {
+      const t = (now - t0) / 1000;
+      const r = [];
+      for (let i = 0; i < n; i++) r.push(0.5 + Math.sin(t * freqs[i] * Math.PI * 2 + phases[i]) * amp);
+      setRatios(r);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [config.dynamic, cellCount, config.sizeVar]);
 
   const restructure = useCallback(() => setTopoSeed((s) => s + 1), []);
 
@@ -65,7 +92,12 @@ export default function GridStudio() {
   );
   const ch = () => (channelRef.current || (channelRef.current = new BroadcastChannel("vj-grid")));
 
-  useEffect(() => { ch().postMessage({ type: "scene", scene, config: lightConfig }); }, [scene, lightConfig]);
+  useEffect(() => {
+    const now = performance.now();
+    if (config.dynamic && now - lastBcRef.current < 40) return; // throttle to ~25fps during dynamic
+    lastBcRef.current = now;
+    ch().postMessage({ type: "scene", scene, config: lightConfig });
+  }, [scene, lightConfig, config.dynamic]);
   useEffect(() => { ch().postMessage({ type: "media", clips: config.media.clips }); }, [config.media.clips]);
   useEffect(() => {
     const c = ch();
@@ -183,7 +215,7 @@ export default function GridStudio() {
   };
   const removeClip = (id) => { setConfig((c) => ({ ...c, media: { clips: c.media.clips.filter((x) => x.id !== id) } })); setTopoSeed((s) => s + 1); };
 
-  const openPopout = () => window.open("/grid-output", "vj-grid-output", "width=1280,height=720");
+  const openPopout = () => window.open("/output", "vj-grid-output", "width=1280,height=720");
 
   return (
     <div className="min-h-screen bg-[#09090B] p-3 text-zinc-100 lg:p-4">
@@ -194,10 +226,7 @@ export default function GridStudio() {
           <header className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500 shadow-[0_0_10px_#10B981]" />
-              <div className="flex overflow-hidden rounded border border-zinc-700 font-mono text-[11px]">
-                <Link to="/" data-testid="mode-kinetic" className="px-3 py-1 text-zinc-400 hover:bg-zinc-800">KINETIC</Link>
-                <span data-testid="mode-grid" className="bg-emerald-500/20 px-3 py-1 text-emerald-400">GRID</span>
-              </div>
+              <h1 className="font-heading text-lg font-bold tracking-tight text-zinc-50">POLYTYPE · GRID ENGINE</h1>
             </div>
             <div className="flex items-center gap-2">
               <button data-testid="grid-fullscreen-button" onClick={goFullscreen} className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 font-mono text-[11px] text-zinc-200 transition-all hover:bg-zinc-700 active:scale-95">
@@ -219,7 +248,7 @@ export default function GridStudio() {
           </div>
 
           <div ref={stageWrapRef} className={`relative flex-1 overflow-hidden rounded-lg border border-zinc-800 bg-black ${fs ? "border-none" : ""}`}>
-            <GridStage scene={scene} config={config} clean={fs} />
+            <GridStage scene={scene} config={config} clean={fs} dynamic={config.dynamic} />
           </div>
         </section>
 
@@ -268,17 +297,25 @@ export default function GridStudio() {
 
             <ProSlider label="BPM" testId="grid-bpm-slider" value={config.bpm} min={40} max={220} step={1} reset={124} onChange={(v) => update({ bpm: v })} />
             <ProSlider label="Cut ogni N beat" testId="grid-cut-slider" value={config.cutEvery} min={1} max={8} step={1} reset={2} onChange={(v) => update({ cutEvery: v })} />
-            <ProSlider label="Complessità (celle)" testId="grid-count-slider" value={config.count} min={3} max={12} step={1} reset={6} onChange={(v) => update({ count: v })} />
+            <ProSlider label="Complessità (min celle)" testId="grid-count-slider" value={config.count} min={3} max={12} step={1} reset={6} onChange={(v) => update({ count: v })} />
             <ProSlider label="Randomicità dimensioni" testId="grid-sizevar-slider" value={config.sizeVar} min={1} max={10} step={1} reset={5} onChange={(v) => update({ sizeVar: v })} />
+
+            {/* Dynamic movement */}
+            <button data-testid="grid-dynamic-toggle" onClick={() => update({ dynamic: !config.dynamic })}
+              className={`flex w-full items-center justify-between rounded border px-3 py-2.5 font-mono text-[11px] transition-all ${config.dynamic ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700"}`}>
+              <span className="flex items-center gap-2"><Activity className="h-3.5 w-3.5" /> Dynamic movement</span>
+              <span>{config.dynamic ? "ON" : "OFF"}</span>
+            </button>
+            {config.dynamic && <p className="-mt-2 font-mono text-[10px] text-zinc-500">Respiro continuo dei riquadri, svincolato dai BPM.</p>}
 
             {/* Resize mode */}
             <div className="space-y-1.5">
-              <span className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">Modalità resize</span>
+              <span className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">Modalità resize (a battito)</span>
               <div className="grid grid-cols-2 gap-2">
-                <button data-testid="grid-resize-all" onClick={() => update({ resizeMode: "all" })}
-                  className={`rounded px-2 py-2 font-mono text-[10px] transition-all ${config.resizeMode === "all" ? "border border-emerald-500/50 bg-emerald-500/20 text-emerald-400" : "border border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}>Tutte insieme</button>
-                <button data-testid="grid-resize-progressive" onClick={() => update({ resizeMode: "progressive" })}
-                  className={`rounded px-2 py-2 font-mono text-[10px] transition-all ${config.resizeMode === "progressive" ? "border border-emerald-500/50 bg-emerald-500/20 text-emerald-400" : "border border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}>Progressivo</button>
+                <button data-testid="grid-resize-all" disabled={config.dynamic} onClick={() => update({ resizeMode: "all" })}
+                  className={`rounded px-2 py-2 font-mono text-[10px] transition-all disabled:opacity-40 ${config.resizeMode === "all" ? "border border-emerald-500/50 bg-emerald-500/20 text-emerald-400" : "border border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}>Tutte insieme</button>
+                <button data-testid="grid-resize-progressive" disabled={config.dynamic} onClick={() => update({ resizeMode: "progressive" })}
+                  className={`rounded px-2 py-2 font-mono text-[10px] transition-all disabled:opacity-40 ${config.resizeMode === "progressive" ? "border border-emerald-500/50 bg-emerald-500/20 text-emerald-400" : "border border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}>Progressivo</button>
               </div>
             </div>
 
@@ -295,10 +332,9 @@ export default function GridStudio() {
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <Toggle label="Invert" testId="grid-invert-toggle" on={config.invert} onClick={() => update({ invert: !config.invert })} />
               <Toggle label="Flip cut" testId="grid-flip-toggle" on={config.flipOnCut} onClick={() => update({ flipOnCut: !config.flipOnCut })} />
-              <Toggle label="A capo" testId="grid-wrap-toggle" on={config.wrap} onClick={() => update({ wrap: !config.wrap })} />
             </div>
 
             {/* Font */}
