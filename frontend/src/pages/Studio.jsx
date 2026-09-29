@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { Maximize2, ExternalLink, RotateCcw, Radio } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -96,7 +97,10 @@ export default function Studio() {
           <header className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500 shadow-[0_0_10px_#10B981]" />
-              <h1 className="font-heading text-lg font-bold tracking-tight text-zinc-50">KINETIC · TYPE ENGINE</h1>
+              <div className="flex overflow-hidden rounded border border-zinc-700 font-mono text-[11px]">
+                <span data-testid="mode-kinetic" className="bg-emerald-500/20 px-3 py-1 text-emerald-400">KINETIC</span>
+                <Link to="/grid" data-testid="mode-grid" className="px-3 py-1 text-zinc-400 hover:bg-zinc-800">GRID</Link>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <button data-testid="fullscreen-output-button" onClick={goFullscreen} className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 font-mono text-[11px] text-zinc-200 transition-all hover:bg-zinc-700 active:scale-95">
