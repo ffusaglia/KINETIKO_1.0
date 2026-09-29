@@ -78,3 +78,8 @@ Motore a griglia generativa BPM-driven ispirato al riferimento "303 MTL PLUGIN".
 - ✅ **Modalità resize "Progressivo"** (oltre a "Tutte insieme"): sul beat cambia solo un sottoinsieme di celle seguendo il pattern 2 → 3 → tutte; la scelta è biasata verso le celle più piccole (leaf-level) così il "un paio alla volta" è visibile anche con poche celle.
 - ✅ Invariante mantenuto: sul beat le celle cambiano solo dimensione, mai posizione/contenuto (reshuffle solo su palette/Restructure/complessità/media).
 - ✅ Testing agent iteration_5: 4/4 nuove feature + regressioni al 100%.
+
+## GRID v4 — media in griglia + Pop-out (2026-06)
+- ✅ **Bug fix media upload**: gli upload (immagini/GIF/clip) vengono letti come **data URL** (funzionano tra finestre); `assignContent` garantisce almeno una cella media quando ci sono clip; feedback toast all'upload. Le celle media sono rese in **duotone** (grayscale + mix-blend screen).
+- ✅ **Media nel Pop-out**: messaggio BroadcastChannel dedicato `media` porta i data URL a `/grid-output` (il broadcast per-beat resta leggero). `GridOutput` ricostruisce gli URL delle clip. Funziona sia aprendo il pop-out prima sia dopo l'upload.
+- ✅ Testing agent iteration_6: media in griglia + pop-out (entrambi gli ordini), persistenza sui beat, rimozione clip, regressioni — 100%.
