@@ -51,3 +51,14 @@ Tool per visual artist: scrivendo in una text box, il testo viene visualizzato a
 ## Next Tasks
 - Aggiungere audio-reactivity e/o BPM tap.
 - Text-as-mask per riempire il testo con la clip video.
+
+## Modalità GRID (aggiunta 2026-06)
+Motore a griglia generativa BPM-driven ispirato al riferimento "303 MTL PLUGIN".
+- Route `/grid` (switch KINETIC/GRID nell'header) + output pulito `/grid-output` e fullscreen.
+- ✅ Griglia spezzata generativa (guillotine split, seed-based) con celle che si ricompongono.
+- ✅ Contenuto celle: frammenti di testo giganti (verticali quando la cella è alta), media in duotone (mix-blend screen su colore palette), blocco metadati (titolo/sottotitolo/BPM/IDX-###).
+- ✅ Palette Nero/Bianco, Blu/Bianco, Rosso/Bianco + Invert + Flip-on-cut.
+- ✅ Loop BPM: restructure automatico ogni N beat + flip colori sul cut; Play/Stop, Restructure, Tap tempo, Space=cut, F=fullscreen.
+- ✅ Slider BPM, cut-every, complessità (n° celle); editing testo/titolo/sottotitolo; selezione font (Archivo Black default); upload immagini/video.
+- ✅ Testing agent: 10/10 flussi GRID passati.
+- Nota: i media (blob locali) non passano nella finestra pop-out; per la cattura in Resolume con media usare la modalità Fullscreen (stesso documento).
