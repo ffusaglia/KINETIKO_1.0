@@ -11,7 +11,8 @@ import { PALETTES, GRID_FONTS, defaultGridConfig, deriveTokens, buildScene } fro
 
 export default function GridStudio() {
   const [config, setConfig] = useState(defaultGridConfig);
-  const [seed, setSeed] = useState(1);
+  const [topoSeed, setTopoSeed] = useState(1);
+  const [cutSeed, setCutSeed] = useState(1);
   const [playing, setPlaying] = useState(false);
   const [fs, setFs] = useState(false);
   const stageWrapRef = useRef(null);
@@ -22,10 +23,16 @@ export default function GridStudio() {
   const update = useCallback((patch) => setConfig((c) => ({ ...c, ...patch })), []);
   const tokens = useMemo(() => deriveTokens(config.text), [config.text]);
   const scene = useMemo(
-    () => buildScene(seed, config.count, tokens, config.media.clips),
-    [seed, config.count, tokens, config.media.clips]
+    () => buildScene(topoSeed, cutSeed, config.count, tokens, config.media.clips),
+    [topoSeed, cutSeed, config.count, tokens, config.media.clips]
   );
-  const restructure = useCallback(() => setSeed((s) => s + 1), []);
+  // Beat cut: morph split ratios (fluid resize in place) + optional color flip.
+  const cut = useCallback(() => {
+    setCutSeed((s) => s + 1);
+    setConfig((c) => (c.flipOnCut ? { ...c, invert: !c.invert } : c));
+  }, []);
+  // Manual restructure: new topology (bigger change) + new ratios.
+  const restructure = useCallback(() => { setTopoSeed((s) => s + 1); setCutSeed((s) => s + 1); }, []);
 
   // Broadcast to pop-out output.
   useEffect(() => {
@@ -40,19 +47,16 @@ export default function GridStudio() {
     return () => ch.removeEventListener("message", onMsg);
   }, [scene, config]);
 
-  // BPM beat loop → restructure + optional color flip on the cut.
+  // BPM beat loop → cut every N beats.
   useEffect(() => {
     if (!playing) return;
     let beat = 0;
     const id = setInterval(() => {
       beat++;
-      if (beat % config.cutEvery === 0) {
-        restructure();
-        if (config.flipOnCut) setConfig((c) => ({ ...c, invert: !c.invert }));
-      }
+      if (beat % config.cutEvery === 0) cut();
     }, 60000 / config.bpm);
     return () => clearInterval(id);
-  }, [playing, config.bpm, config.cutEvery, config.flipOnCut, restructure]);
+  }, [playing, config.bpm, config.cutEvery, cut]);
 
   const goFullscreen = () => stageWrapRef.current?.requestFullscreen?.();
   useEffect(() => {
@@ -65,13 +69,13 @@ export default function GridStudio() {
   useEffect(() => {
     const onKey = (e) => {
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
-      if (e.code === "Space") { e.preventDefault(); restructure(); if (config.flipOnCut) setConfig((c) => ({ ...c, invert: !c.invert })); }
+      if (e.code === "Space") { e.preventDefault(); cut(); }
       if (e.key === "f") goFullscreen();
       if (e.key === "t") tap();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [restructure, config.flipOnCut]);
+  }, [cut]);
 
   const tap = () => {
     const now = performance.now();
@@ -159,6 +163,8 @@ export default function GridStudio() {
               <TextField label="Sottotitolo" testId="grid-subtitle-input" value={config.subtitle} onChange={(v) => update({ subtitle: v })} />
             </div>
 
+            <TextField label="Codice IDX (vuoto = automatico)" testId="grid-idx-input" value={config.idx} onChange={(v) => update({ idx: v })} placeholder="es. 949" />
+
             <ProSlider label="BPM" testId="grid-bpm-slider" value={config.bpm} min={40} max={220} step={1} reset={124} onChange={(v) => update({ bpm: v, metaBpm: v })} />
             <ProSlider label="Cut ogni N beat" testId="grid-cut-slider" value={config.cutEvery} min={1} max={8} step={1} reset={2} onChange={(v) => update({ cutEvery: v })} />
             <ProSlider label="Complessità (celle)" testId="grid-count-slider" value={config.count} min={3} max={12} step={1} reset={6} onChange={(v) => update({ count: v })} />
@@ -214,7 +220,7 @@ export default function GridStudio() {
               ))}
             </div>
 
-            <button data-testid="grid-reset-button" onClick={() => { setConfig(defaultGridConfig); setSeed(1); setPlaying(false); }}
+            <button data-testid="grid-reset-button" onClick={() => { setConfig(defaultGridConfig); setTopoSeed(1); setCutSeed(1); setPlaying(false); }}
               className="w-full rounded border border-zinc-700 bg-zinc-800 py-2 font-mono text-[11px] uppercase tracking-wider text-zinc-300 transition-all hover:bg-zinc-700">
               Reset
             </button>
@@ -225,12 +231,12 @@ export default function GridStudio() {
   );
 }
 
-function TextField({ label, value, onChange, testId }) {
+function TextField({ label, value, onChange, testId, placeholder }) {
   return (
     <div className="space-y-1.5">
       <span className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">{label}</span>
-      <input data-testid={testId} value={value} onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded border border-zinc-700 bg-zinc-900/80 px-2 py-1.5 font-mono text-xs text-zinc-200 outline-none focus:border-emerald-500/50" />
+      <input data-testid={testId} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded border border-zinc-700 bg-zinc-900/80 px-2 py-1.5 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-emerald-500/50" />
     </div>
   );
 }
