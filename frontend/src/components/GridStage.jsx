@@ -16,6 +16,14 @@ function textWidthAt1px(text, font) {
 export default function GridStage({ scene, config, clean = false }) {
   const wrapRef = useRef(null);
   const [dims, setDims] = useState({ w: 0, h: 0 });
+  const [, setFontTick] = useState(0);
+
+  // Re-measure once web fonts finish loading so auto-fit is accurate.
+  useEffect(() => {
+    let done = false;
+    document.fonts?.ready?.then(() => { if (!done) setFontTick((t) => t + 1); });
+    return () => { done = true; };
+  }, []);
 
   useEffect(() => {
     const wrap = wrapRef.current;
