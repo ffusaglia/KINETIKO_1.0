@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Maximize2, ExternalLink, Shuffle, Play, Pause, Upload, Trash2, Zap } from "lucide-react";
+import { Maximize2, ExternalLink, Shuffle, Play, Pause, Upload, Trash2, Zap, Mic, MicOff } from "lucide-react";
+import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,25 +15,36 @@ export default function GridStudio() {
   const [topoSeed, setTopoSeed] = useState(1);
   const [cutSeed, setCutSeed] = useState(1);
   const [playing, setPlaying] = useState(false);
+  const [micOn, setMicOn] = useState(false);
+  const [level, setLevel] = useState(0);
   const [fs, setFs] = useState(false);
   const stageWrapRef = useRef(null);
   const channelRef = useRef(null);
   const inputRef = useRef(null);
   const tapRef = useRef([]);
+  const audioRef = useRef({});
+  const sensRef = useRef(config.micSens);
+  sensRef.current = config.micSens;
 
   const update = useCallback((patch) => setConfig((c) => ({ ...c, ...patch })), []);
-  const tokens = useMemo(() => deriveTokens(config.text), [config.text]);
+  const tokens = useMemo(() => deriveTokens(config.text, config.wrap), [config.text, config.wrap]);
   const scene = useMemo(
     () => buildScene(topoSeed, cutSeed, config.count, tokens, config.media.clips),
     [topoSeed, cutSeed, config.count, tokens, config.media.clips]
   );
-  // Beat cut: morph split ratios (fluid resize in place) + optional color flip.
+
+  // Cut = beat event: morph cell sizes only + optional gradual color flip. Never reshuffles cells.
   const cut = useCallback(() => {
     setCutSeed((s) => s + 1);
     setConfig((c) => (c.flipOnCut ? { ...c, invert: !c.invert } : c));
   }, []);
-  // Manual restructure: new topology (bigger change) + new ratios.
+  const cutRef = useRef(cut);
+  cutRef.current = cut;
+
+  // Manual restructure & complexity change = new topology (cells may re-arrange).
   const restructure = useCallback(() => { setTopoSeed((s) => s + 1); setCutSeed((s) => s + 1); }, []);
+  // Palette change is the only auto-trigger allowed to re-arrange cells.
+  const setPalette = (key) => { update({ palette: key }); setTopoSeed((s) => s + 1); };
 
   // Broadcast to pop-out output.
   useEffect(() => {
@@ -47,16 +59,13 @@ export default function GridStudio() {
     return () => ch.removeEventListener("message", onMsg);
   }, [scene, config]);
 
-  // BPM beat loop → cut every N beats.
+  // BPM beat loop (disabled while mic reactivity is on).
   useEffect(() => {
-    if (!playing) return;
+    if (!playing || micOn) return;
     let beat = 0;
-    const id = setInterval(() => {
-      beat++;
-      if (beat % config.cutEvery === 0) cut();
-    }, 60000 / config.bpm);
+    const id = setInterval(() => { beat++; if (beat % config.cutEvery === 0) cut(); }, 60000 / config.bpm);
     return () => clearInterval(id);
-  }, [playing, config.bpm, config.cutEvery, cut]);
+  }, [playing, micOn, config.bpm, config.cutEvery, cut]);
 
   const goFullscreen = () => stageWrapRef.current?.requestFullscreen?.();
   useEffect(() => {
@@ -65,7 +74,6 @@ export default function GridStudio() {
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
 
-  // Keyboard: space = cut, f = fullscreen, t = tap tempo.
   useEffect(() => {
     const onKey = (e) => {
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
@@ -82,19 +90,61 @@ export default function GridStudio() {
     tapRef.current = [...tapRef.current.filter((t) => now - t < 2500), now];
     if (tapRef.current.length >= 2) {
       const arr = tapRef.current;
-      const avg = (arr[arr.length - 1] - arr[0]) / (arr.length - 1);
-      const bpm = Math.round(60000 / avg);
+      const bpm = Math.round(60000 / ((arr[arr.length - 1] - arr[0]) / (arr.length - 1)));
       if (bpm >= 40 && bpm <= 300) update({ bpm, metaBpm: bpm });
     }
   };
+
+  // Microphone beat reactivity: detects bass transients and triggers a cut on each beat.
+  const stopMic = useCallback(() => {
+    const a = audioRef.current;
+    if (a.raf) cancelAnimationFrame(a.raf);
+    if (a.stream) a.stream.getTracks().forEach((t) => t.stop());
+    if (a.ac) a.ac.close();
+    audioRef.current = {};
+    setMicOn(false);
+    setLevel(0);
+  }, []);
+
+  const startMic = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const ac = new (window.AudioContext || window.webkitAudioContext)();
+      const src = ac.createMediaStreamSource(stream);
+      const analyser = ac.createAnalyser();
+      analyser.fftSize = 1024;
+      src.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      let avg = 0, last = 0;
+      const loop = () => {
+        analyser.getByteFrequencyData(data);
+        let sum = 0; const N = 8;
+        for (let i = 0; i < N; i++) sum += data[i];
+        const energy = sum / N;
+        avg = avg * 0.92 + energy * 0.08;
+        setLevel(Math.min(1, energy / 200));
+        const now = performance.now();
+        if (energy > avg * sensRef.current && energy > 45 && now - last > 150) { last = now; cutRef.current(); }
+        audioRef.current.raf = requestAnimationFrame(loop);
+      };
+      audioRef.current = { stream, ac };
+      audioRef.current.raf = requestAnimationFrame(loop);
+      setMicOn(true);
+      setPlaying(false);
+      toast.success("Microfono attivo — la griglia segue la musica");
+    } catch {
+      toast.error("Microfono non disponibile o permesso negato");
+    }
+  };
+  useEffect(() => () => stopMic(), [stopMic]);
 
   const onFiles = (files) => {
     const added = Array.from(files)
       .filter((f) => f.type.startsWith("video") || f.type.startsWith("image"))
       .map((f) => ({ id: crypto.randomUUID(), name: f.name, url: URL.createObjectURL(f), kind: f.type.startsWith("video") ? "video" : "image" }));
-    if (added.length) update({ media: { clips: [...config.media.clips, ...added] } });
+    if (added.length) { update({ media: { clips: [...config.media.clips, ...added] } }); setTopoSeed((s) => s + 1); }
   };
-  const removeClip = (id) => update({ media: { clips: config.media.clips.filter((c) => c.id !== id) } });
+  const removeClip = (id) => { update({ media: { clips: config.media.clips.filter((c) => c.id !== id) } }); setTopoSeed((s) => s + 1); };
 
   const openPopout = () => window.open("/grid-output", "vj-grid-output", "width=1280,height=720");
 
@@ -140,9 +190,14 @@ export default function GridStudio() {
         <aside className="flex min-h-0 flex-col overflow-y-auto rounded-lg border border-zinc-800 bg-[#121215] p-4 lg:col-span-5 xl:col-span-4">
           <div className="space-y-5">
             {/* Transport */}
-            <div className="flex items-center gap-2">
-              <button data-testid="grid-play-button" onClick={() => setPlaying((p) => !p)} className={`flex items-center gap-1.5 rounded px-3 py-2 font-mono text-[11px] transition-all ${playing ? "border border-emerald-500/50 bg-emerald-500/20 text-emerald-400" : "border border-zinc-700 bg-zinc-800 text-zinc-200"}`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <button data-testid="grid-play-button" onClick={() => setPlaying((p) => !p)} disabled={micOn}
+                className={`flex items-center gap-1.5 rounded px-3 py-2 font-mono text-[11px] transition-all disabled:opacity-40 ${playing ? "border border-emerald-500/50 bg-emerald-500/20 text-emerald-400" : "border border-zinc-700 bg-zinc-800 text-zinc-200"}`}>
                 {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />} {playing ? "Stop" : "Play"}
+              </button>
+              <button data-testid="grid-mic-button" onClick={() => (micOn ? stopMic() : startMic())}
+                className={`flex items-center gap-1.5 rounded px-3 py-2 font-mono text-[11px] transition-all ${micOn ? "border border-emerald-500/50 bg-emerald-500/20 text-emerald-400" : "border border-zinc-700 bg-zinc-800 text-zinc-200 hover:bg-zinc-700"}`}>
+                {micOn ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />} Audio
               </button>
               <button data-testid="grid-restructure-button" onClick={restructure} className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-800 px-3 py-2 font-mono text-[11px] text-zinc-200 transition-all hover:bg-zinc-700 active:scale-95">
                 <Shuffle className="h-3.5 w-3.5" /> Restructure
@@ -151,6 +206,16 @@ export default function GridStudio() {
                 <Zap className="h-3.5 w-3.5" /> Tap
               </button>
             </div>
+
+            {micOn && (
+              <div className="space-y-2">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
+                  <div className="h-full rounded-full bg-emerald-500 transition-[width] duration-75" style={{ width: `${level * 100}%` }} data-testid="grid-audio-level" />
+                </div>
+                <ProSlider label="Sensibilità audio" testId="grid-sens-slider" value={config.micSens} min={1.05} max={2.5} step={0.05} reset={1.35} onChange={(v) => update({ micSens: v })} unit="x" />
+                <p className="font-mono text-[10px] text-zinc-500">Valori più bassi = più reattivo ai beat.</p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <label className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">Testo (parole = celle · ; o spazio separano)</label>
@@ -174,7 +239,7 @@ export default function GridStudio() {
               <span className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">Palette</span>
               <div className="grid grid-cols-3 gap-2">
                 {Object.entries(PALETTES).map(([key, p]) => (
-                  <button key={key} data-testid={`grid-palette-${key}`} onClick={() => update({ palette: key })}
+                  <button key={key} data-testid={`grid-palette-${key}`} onClick={() => setPalette(key)}
                     className={`flex items-center justify-center gap-1.5 rounded border px-2 py-2 font-mono text-[10px] transition-all ${config.palette === key ? "border-emerald-500/50 bg-emerald-500/10 text-zinc-100" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}>
                     <span className="h-3 w-3 rounded-sm border border-zinc-600" style={{ background: p.fg }} />
                     {p.label}
@@ -183,22 +248,19 @@ export default function GridStudio() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               <Toggle label="Invert" testId="grid-invert-toggle" on={config.invert} onClick={() => update({ invert: !config.invert })} />
-              <Toggle label="Flip on cut" testId="grid-flip-toggle" on={config.flipOnCut} onClick={() => update({ flipOnCut: !config.flipOnCut })} />
+              <Toggle label="Flip cut" testId="grid-flip-toggle" on={config.flipOnCut} onClick={() => update({ flipOnCut: !config.flipOnCut })} />
+              <Toggle label="A capo" testId="grid-wrap-toggle" on={config.wrap} onClick={() => update({ wrap: !config.wrap })} />
             </div>
 
             {/* Font */}
             <div className="space-y-1.5">
               <span className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">Font</span>
               <Select value={config.font} onValueChange={(v) => update({ font: v })}>
-                <SelectTrigger data-testid="grid-font-select" className="border-zinc-700 bg-zinc-900/80 text-sm text-zinc-200">
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger data-testid="grid-font-select" className="border-zinc-700 bg-zinc-900/80 text-sm text-zinc-200"><SelectValue /></SelectTrigger>
                 <SelectContent className="border-zinc-700 bg-zinc-900 text-zinc-200">
-                  {GRID_FONTS.map((f) => (
-                    <SelectItem key={f} value={f} style={{ fontFamily: `"${f}", sans-serif` }}>{f}</SelectItem>
-                  ))}
+                  {GRID_FONTS.map((f) => (<SelectItem key={f} value={f} style={{ fontFamily: `"${f}", sans-serif` }}>{f}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
@@ -209,7 +271,7 @@ export default function GridStudio() {
                 data-testid="grid-media-dropzone"
                 className="flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/50 py-4 transition-all hover:border-emerald-500/50 hover:bg-emerald-500/5">
                 <Upload className="h-4 w-4 text-zinc-500" />
-                <span className="font-mono text-[11px] text-zinc-400">Carica immagini / video (duotone)</span>
+                <span className="font-mono text-[11px] text-zinc-400">Carica clip / GIF / immagini (duotone)</span>
                 <input ref={inputRef} type="file" accept="image/*,video/*" multiple hidden data-testid="grid-media-input" onChange={(e) => onFiles(e.target.files)} />
               </div>
               {config.media.clips.map((c) => (
@@ -220,7 +282,7 @@ export default function GridStudio() {
               ))}
             </div>
 
-            <button data-testid="grid-reset-button" onClick={() => { setConfig(defaultGridConfig); setTopoSeed(1); setCutSeed(1); setPlaying(false); }}
+            <button data-testid="grid-reset-button" onClick={() => { stopMic(); setConfig(defaultGridConfig); setTopoSeed(1); setCutSeed(1); setPlaying(false); }}
               className="w-full rounded border border-zinc-700 bg-zinc-800 py-2 font-mono text-[11px] uppercase tracking-wider text-zinc-300 transition-all hover:bg-zinc-700">
               Reset
             </button>
@@ -244,7 +306,7 @@ function TextField({ label, value, onChange, testId, placeholder }) {
 function Toggle({ label, on, onClick, testId }) {
   return (
     <button data-testid={testId} onClick={onClick}
-      className={`flex items-center justify-between rounded border px-3 py-2 font-mono text-[11px] transition-all ${on ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 bg-zinc-800 text-zinc-400"}`}>
+      className={`flex items-center justify-between rounded border px-2 py-2 font-mono text-[10px] transition-all ${on ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 bg-zinc-800 text-zinc-400"}`}>
       {label} <span>{on ? "ON" : "OFF"}</span>
     </button>
   );

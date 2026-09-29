@@ -1,6 +1,8 @@
 // Generative broken-grid engine.
-// Topology (BSP tree) is stable per topoSeed; split ratios re-randomize per cutSeed,
-// so cells fluidly grow/shrink in place (ease-in-out via CSS) instead of teleporting.
+// Topology (BSP tree) + content assignment are STABLE per topoSeed: on a beat/cut only the
+// split ratios morph (cells grow/shrink in place, ease-in-out via CSS). Cells never swap
+// content or position on a cut — a full reshuffle happens only when topoSeed changes
+// (palette change, manual Restructure, or complexity change).
 
 export const PALETTES = {
   bw: { bg: "#FFFFFF", fg: "#0A0A0A", label: "Nero/Bianco" },
@@ -27,9 +29,11 @@ export const defaultGridConfig = {
   palette: "blue",
   invert: false,
   flipOnCut: true,
+  wrap: false,
   bpm: 124,
   cutEvery: 2,
   count: 6,
+  micSens: 1.35,
   aspect: "16/9",
   media: { clips: [] },
 };
@@ -39,12 +43,11 @@ export function effectivePalette(key, invert) {
   return invert ? { bg: p.fg, fg: p.bg } : { bg: p.bg, fg: p.fg };
 }
 
-export function deriveTokens(text) {
-  return (text || "")
-    .split(/[;\s]+/)
-    .map((t) => t.trim())
-    .filter(Boolean)
-    .map((t) => t.toUpperCase());
+// wrap=false → one word per cell (split on spaces + ';'); wrap=true → one segment per ';'
+// (a segment may hold multiple words that wrap onto several lines inside the cell).
+export function deriveTokens(text, wrap) {
+  const parts = wrap ? (text || "").split(";") : (text || "").split(/[;\s]+/);
+  return parts.map((t) => t.trim()).filter(Boolean).map((t) => t.toUpperCase());
 }
 
 function rng(seed) {
@@ -58,7 +61,6 @@ function rng(seed) {
   };
 }
 
-// Stable topology: a BSP tree with `count` leaves (ids 0..count-1). No ratios yet.
 function buildTopology(seed, count) {
   const rand = rng(Math.imul(seed, 2654435761) + 1);
   let idc = 0;
@@ -79,29 +81,29 @@ function buildTopology(seed, count) {
   return root;
 }
 
-// Compute leaf rects using fresh random split ratios for this cut.
-function computeRects(tree, cutSeed) {
-  const rand = rng(Math.imul(cutSeed, 40503) + 7);
+function computeRects(tree, ratioSeed) {
+  const rand = rng(Math.imul(ratioSeed, 40503) + 7);
   const out = {};
   (function rec(node, x, y, w, h) {
     if (node.leaf) { out[node.id] = { x, y, w, h }; return; }
-    const r = 0.3 + rand() * 0.4;
+    const r = 0.28 + rand() * 0.44;
     if (node.dir === "v") { const w1 = w * r; rec(node.a, x, y, w1, h); rec(node.b, x + w1, y, w - w1, h); }
     else { const h1 = h * r; rec(node.a, x, y, w, h1); rec(node.b, x, y + h1, w, h - h1); }
   })(tree, 0, 0, 1, 1);
   return out;
 }
 
-function assignContent(cutSeed, cells, tokens, media) {
-  const rand = rng(Math.imul(cutSeed, 22695) + 13);
-  const n = cells.length;
-  const order = [...cells.keys()].sort((a, b) => cells[b].w * cells[b].h - cells[a].w * cells[a].h);
+// Stable assignment: seeded only by topoSeed + areas of the base layout (no cutSeed).
+function assignContent(topoSeed, baseCells, tokens, media) {
+  const rand = rng(Math.imul(topoSeed, 22695) + 13);
+  const n = baseCells.length;
+  const order = [...baseCells.keys()].sort((a, b) => baseCells[b].w * baseCells[b].h - baseCells[a].w * baseCells[a].h);
   const assign = new Array(n);
   const metaIdx = order[Math.min(n - 1, 1 + Math.floor(rand() * Math.max(1, n - 2)))];
   let ti = 0;
   for (const idx of order) {
     if (idx === metaIdx) continue;
-    const useMedia = media.length > 0 && (ti >= tokens.length || rand() < 0.35);
+    const useMedia = media.length > 0 && (ti >= tokens.length || rand() < 0.4);
     if (useMedia) assign[idx] = { type: "media", mediaId: media[Math.floor(rand() * media.length)].id };
     else { assign[idx] = { type: "text", token: tokens[ti % Math.max(1, tokens.length)] || "303" }; ti++; }
   }
@@ -113,10 +115,13 @@ function assignContent(cutSeed, cells, tokens, media) {
 export function buildScene(topoSeed, cutSeed, count, tokens, media) {
   const safeTokens = tokens.length ? tokens : ["303"];
   const tree = buildTopology(topoSeed, count);
-  const rectMap = computeRects(tree, cutSeed);
+  const baseCells = [];
+  const baseMap = computeRects(tree, topoSeed);
+  for (let i = 0; i < count; i++) baseCells[i] = baseMap[i];
+  const assign = assignContent(topoSeed, baseCells, safeTokens, media);
+  const liveMap = computeRects(tree, cutSeed);
   const cells = [];
-  for (let i = 0; i < count; i++) cells[i] = rectMap[i];
-  const assign = assignContent(cutSeed, cells, safeTokens, media);
+  for (let i = 0; i < count; i++) cells[i] = liveMap[i];
   const idxNum = 200 + (Math.abs(Math.imul(cutSeed, 7)) % 800);
   return { cells, assign, idxCode: `IDX-${idxNum}` };
 }
