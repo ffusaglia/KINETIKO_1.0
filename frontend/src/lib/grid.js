@@ -153,6 +153,12 @@ function assignContent(topoSeed, baseCells, tokens, media) {
     else { assign[idx] = { type: "text", token: tokens[ti % Math.max(1, tokens.length)] || "303" }; ti++; }
   }
   assign[metaIdx] = { type: "meta" };
+  // Guarantee media is actually used when clips exist (convert the smallest text cell).
+  if (media.length > 0 && !assign.some((x) => x && x.type === "media")) {
+    const textIdxs = order.filter((i) => assign[i] && assign[i].type === "text");
+    const target = textIdxs[textIdxs.length - 1];
+    if (target != null) assign[target] = { type: "media", mediaId: media[0].id };
+  }
   // Alternate colors: guarantee a balanced ~50% mix (not all cells the same color).
   const inds = [...assign.keys()];
   for (let i = inds.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [inds[i], inds[j]] = [inds[j], inds[i]]; }

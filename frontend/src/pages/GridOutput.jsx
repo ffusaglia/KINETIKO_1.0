@@ -3,18 +3,29 @@ import GridStage from "@/components/GridStage";
 import { defaultGridConfig, buildScene, deriveTokens } from "@/lib/grid";
 
 // Clean grid output window for capture into Resolume / OBS.
+// Receives the live scene/config over BroadcastChannel, plus a dedicated 'media' message
+// carrying the clip data URLs (so images/videos also render on the second monitor).
 export default function GridOutput() {
   const [state, setState] = useState({
     scene: buildScene(1, defaultGridConfig.count, deriveTokens(defaultGridConfig.text, defaultGridConfig.wrap), [], null),
     config: defaultGridConfig,
   });
-  const chRef = useRef(null);
+  const mediaRef = useRef({});
 
   useEffect(() => {
     const ch = new BroadcastChannel("vj-grid");
-    chRef.current = ch;
+    const rebuild = (cfg) => ({
+      ...cfg,
+      media: { clips: (cfg.media?.clips || []).map((c) => (mediaRef.current[c.id] ? { ...c, url: mediaRef.current[c.id].url } : c)) },
+    });
     ch.onmessage = (e) => {
-      if (e.data?.type === "scene") setState({ scene: e.data.scene, config: e.data.config });
+      const d = e.data;
+      if (d?.type === "media") {
+        mediaRef.current = Object.fromEntries((d.clips || []).map((c) => [c.id, c]));
+        setState((s) => ({ ...s, config: rebuild(s.config) }));
+      } else if (d?.type === "scene") {
+        setState({ scene: d.scene, config: rebuild(d.config) });
+      }
     };
     ch.postMessage({ type: "request" });
     document.title = "VJ · GRID OUTPUT";

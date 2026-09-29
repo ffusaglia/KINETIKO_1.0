@@ -59,17 +59,26 @@ export default function GridStudio() {
   const restructure = useCallback(() => setTopoSeed((s) => s + 1), []);
   const setPalette = (key) => { update({ palette: key }); setTopoSeed((s) => s + 1); };
 
+  // Lightweight config for the per-beat broadcast (media data URLs are sent separately, once).
+  const lightConfig = useMemo(
+    () => ({ ...config, media: { clips: config.media.clips.map(({ id, name, kind }) => ({ id, name, kind })) } }),
+    [config]
+  );
+  const ch = () => (channelRef.current || (channelRef.current = new BroadcastChannel("vj-grid")));
+
+  useEffect(() => { ch().postMessage({ type: "scene", scene, config: lightConfig }); }, [scene, lightConfig]);
+  useEffect(() => { ch().postMessage({ type: "media", clips: config.media.clips }); }, [config.media.clips]);
   useEffect(() => {
-    if (!channelRef.current) channelRef.current = new BroadcastChannel("vj-grid");
-    channelRef.current.postMessage({ type: "scene", scene, config });
-  }, [scene, config]);
-  useEffect(() => {
-    const ch = channelRef.current || new BroadcastChannel("vj-grid");
-    channelRef.current = ch;
-    const onMsg = (e) => { if (e.data?.type === "request") ch.postMessage({ type: "scene", scene, config }); };
-    ch.addEventListener("message", onMsg);
-    return () => ch.removeEventListener("message", onMsg);
-  }, [scene, config]);
+    const c = ch();
+    const onMsg = (e) => {
+      if (e.data?.type === "request") {
+        c.postMessage({ type: "media", clips: config.media.clips });
+        c.postMessage({ type: "scene", scene, config: lightConfig });
+      }
+    };
+    c.addEventListener("message", onMsg);
+    return () => c.removeEventListener("message", onMsg);
+  }, [scene, lightConfig, config.media.clips]);
 
   useEffect(() => {
     if (!playing || micOn) return;
@@ -148,13 +157,24 @@ export default function GridStudio() {
   };
   useEffect(() => () => stopMic(), [stopMic]);
 
-  const onFiles = (files) => {
-    const added = Array.from(files)
-      .filter((f) => f.type.startsWith("video") || f.type.startsWith("image"))
-      .map((f) => ({ id: crypto.randomUUID(), name: f.name, url: URL.createObjectURL(f), kind: f.type.startsWith("video") ? "video" : "image" }));
-    if (added.length) { update({ media: { clips: [...config.media.clips, ...added] } }); setTopoSeed((s) => s + 1); }
+  const onFiles = async (files) => {
+    const valid = Array.from(files).filter((f) => f.type.startsWith("video") || f.type.startsWith("image"));
+    if (!valid.length) return;
+    const added = await Promise.all(
+      valid.map((f) => new Promise((res) => {
+        const r = new FileReader();
+        r.onload = () => res({ id: crypto.randomUUID(), name: f.name, kind: f.type.startsWith("video") ? "video" : "image", url: r.result });
+        r.onerror = () => res(null);
+        r.readAsDataURL(f);
+      }))
+    );
+    const clips = added.filter(Boolean);
+    if (!clips.length) { toast.error("Impossibile leggere il file"); return; }
+    setConfig((c) => ({ ...c, media: { clips: [...c.media.clips, ...clips] } }));
+    setTopoSeed((s) => s + 1);
+    toast.success(`${clips.length} media aggiunto — appare nelle celle`);
   };
-  const removeClip = (id) => { update({ media: { clips: config.media.clips.filter((c) => c.id !== id) } }); setTopoSeed((s) => s + 1); };
+  const removeClip = (id) => { setConfig((c) => ({ ...c, media: { clips: c.media.clips.filter((x) => x.id !== id) } })); setTopoSeed((s) => s + 1); };
 
   const openPopout = () => window.open("/grid-output", "vj-grid-output", "width=1280,height=720");
 
