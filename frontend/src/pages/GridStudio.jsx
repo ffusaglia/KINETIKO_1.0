@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ProSlider } from "@/components/ProSlider";
 import GridStage from "@/components/GridStage";
 import { ASPECTS } from "@/lib/render";
-import { PALETTES, GRID_FONTS, defaultGridConfig, deriveTokens, buildScene, randomRatios, mutateRatios } from "@/lib/grid";
+import { PALETTES, GRID_FONTS, defaultGridConfig, deriveTokens, buildScene, randomRatios, mutateRatios, topologyWeights } from "@/lib/grid";
 
 export default function GridStudio() {
   const [config, setConfig] = useState(defaultGridConfig);
@@ -29,6 +29,9 @@ export default function GridStudio() {
 
   const update = useCallback((patch) => setConfig((c) => ({ ...c, ...patch })), []);
   const tokens = useMemo(() => deriveTokens(config.text, config.wrap), [config.text, config.wrap]);
+  const weights = useMemo(() => topologyWeights(topoSeed, config.count), [topoSeed, config.count]);
+  const weightsRef = useRef(weights);
+  weightsRef.current = weights;
   const scene = useMemo(
     () => buildScene(topoSeed, config.count, tokens, config.media.clips, ratios),
     [topoSeed, config.count, tokens, config.media.clips, ratios]
@@ -46,7 +49,7 @@ export default function GridStudio() {
       const pattern = [2, 3, n];
       const k = Math.min(n, pattern[stepRef.current % pattern.length]);
       stepRef.current++;
-      return mutateRatios(base, k, config.sizeVar);
+      return mutateRatios(base, k, config.sizeVar, weightsRef.current);
     });
     setConfig((c) => (c.flipOnCut ? { ...c, invert: !c.invert } : c));
   }, [config.count, config.sizeVar, config.resizeMode, config.flipOnCut]);

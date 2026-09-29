@@ -70,3 +70,11 @@ Motore a griglia generativa BPM-driven ispirato al riferimento "303 MTL PLUGIN".
 - ✅ **Ritorno a capo (toggle "A capo")**: split per `;`, frasi multi-parola vanno a capo nella cella con fit binario multi-linea; default = una parola per cella.
 - ✅ **Media nelle celle (clip/GIF/immagini)** in duotone (grayscale + mix-blend screen), assegnazione stabile.
 - ✅ Testing agent iteration_4: 7/7 checks passati.
+
+## GRID v3 — colori alternati, meta unificata, randomicità, resize progressivo (2026-06)
+- ✅ **Colori alternati garantiti**: assegnazione bilanciata ~50% celle accent-bg / celle white-bg (non più tutte uguali).
+- ✅ **Meta unificata**: una sola textbox "Testo info (meta)" con `;` = a capo; la cella meta si auto-adatta al riquadro come le altre (rimossi i campi separati sottotitolo/IDX/titolo/BPM).
+- ✅ **Slider "Randomicità dimensioni" (1-10)**: controlla lo spread dei rat" tra le celle (mite → forte).
+- ✅ **Modalità resize "Progressivo"** (oltre a "Tutte insieme"): sul beat cambia solo un sottoinsieme di celle seguendo il pattern 2 → 3 → tutte; la scelta è biasata verso le celle più piccole (leaf-level) così il "un paio alla volta" è visibile anche con poche celle.
+- ✅ Invariante mantenuto: sul beat le celle cambiano solo dimensione, mai posizione/contenuto (reshuffle solo su palette/Restructure/complessità/media).
+- ✅ Testing agent iteration_5: 4/4 nuove feature + regressioni al 100%.

@@ -109,14 +109,34 @@ export function randomRatios(count, sizeVar) {
   for (let i = 0; i < count - 1; i++) out.push(0.5 - s / 2 + Math.random() * s);
   return out;
 }
-// Change only `k` ratios (progressive mode) keeping the rest in place.
-export function mutateRatios(ratios, k, sizeVar) {
+// Change only `k` ratios (progressive mode). When leaf-weights are provided, prefer the
+// internal splits that affect the FEWEST cells so "a couple at a time" is visible.
+export function mutateRatios(ratios, k, sizeVar, weights) {
   const s = ratioSpread(sizeVar);
   const out = ratios.slice();
-  const idxs = [...out.keys()];
-  for (let i = idxs.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idxs[i], idxs[j]] = [idxs[j], idxs[i]]; }
+  let idxs = [...out.keys()];
+  if (weights && weights.length === out.length) {
+    idxs.sort((a, b) => weights[a] - weights[b] || Math.random() - 0.5);
+  } else {
+    for (let i = idxs.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idxs[i], idxs[j]] = [idxs[j], idxs[i]]; }
+  }
   for (let i = 0; i < Math.min(k, idxs.length); i++) out[idxs[i]] = 0.5 - s / 2 + Math.random() * s;
   return out;
+}
+
+// Leaves under each internal node, in the same pre-order as the ratios array.
+export function topologyWeights(topoSeed, count) {
+  const tree = buildTopology(topoSeed, count);
+  const weights = [];
+  (function rec(node) {
+    if (node.leaf) return 1;
+    const idx = weights.length;
+    weights.push(0);
+    const total = rec(node.a) + rec(node.b);
+    weights[idx] = total;
+    return total;
+  })(tree);
+  return weights;
 }
 
 function assignContent(topoSeed, baseCells, tokens, media) {
