@@ -62,3 +62,11 @@ Motore a griglia generativa BPM-driven ispirato al riferimento "303 MTL PLUGIN".
 - ✅ Slider BPM, cut-every, complessità (n° celle); editing testo/titolo/sottotitolo; selezione font (Archivo Black default); upload immagini/video.
 - ✅ Testing agent: 10/10 flussi GRID passati.
 - Nota: i media (blob locali) non passano nella finestra pop-out; per la cattura in Resolume con media usare la modalità Fullscreen (stesso documento).
+
+## GRID v2 — reattività audio, wrap, stabilità (2026-06)
+- ✅ **Reattività audio (microfono)**: Web Audio API, rilevamento beat sui bassi → `cut()` a tempo di musica; slider sensibilità + level meter. Disabilita il loop BPM quando attivo.
+- ✅ **Celle stabili sul beat**: assegnazione contenuti seedata solo da `topoSeed` (stabile); sul cut cambiano SOLO le dimensioni (ratio morph). Nessuno scambio di celle. Riorganizzazione (nuova topologia) solo su cambio palette / Restructure / complessità.
+- ✅ **Invert graduale**: transizione `background-color/color 0.4s ease-in-out` su celle/stage/meta/media.
+- ✅ **Ritorno a capo (toggle "A capo")**: split per `;`, frasi multi-parola vanno a capo nella cella con fit binario multi-linea; default = una parola per cella.
+- ✅ **Media nelle celle (clip/GIF/immagini)** in duotone (grayscale + mix-blend screen), assegnazione stabile.
+- ✅ Testing agent iteration_4: 7/7 checks passati.
