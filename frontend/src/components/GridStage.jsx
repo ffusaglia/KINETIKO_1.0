@@ -152,9 +152,9 @@ function CellContent({ a, w, h, eff, config, clips, dynamic }) {
     return (
       <div className="h-full w-full" style={{ background: eff.bg, transition: COLOR_TR }}>
         {clip.kind === "video" ? (
-          <video src={clip.url} autoPlay loop muted playsInline style={ms} />
+          <video data-clip-id={clip.id} src={clip.url} autoPlay loop muted playsInline crossOrigin="anonymous" style={ms} />
         ) : (
-          <img src={clip.url} alt="" style={ms} />
+          <img data-clip-id={clip.id} src={clip.url} alt="" crossOrigin="anonymous" style={ms} />
         )}
       </div>
     );

@@ -98,3 +98,8 @@ Motore a griglia generativa BPM-driven ispirato al riferimento "303 MTL PLUGIN".
 - ✅ **Dynamic movement**: respiro continuo dei rettangoli via rAF, svincolato dai BPM (transizioni disattivate in dynamic). Testing iteration_8: 100%.
 - ✅ **Font esterni drag&drop** (.ttf/.otf) registrati + sincronizzati al pop-out; **pannello audio 3 bande** (bassi/medi/alti) con meter, intensità per banda, selezione banda reattiva e soglia. Testing iteration_9: 100%.
 - ⚠️ **Spout/Syphon**: non emettibile nativamente da browser. Pipeline reale: `/output` (finestra pulita) → OBS Studio + Spout2/Syphon (o NDI) → Resolume Arena.
+
+## GRID v8 — Export JPG + registrazione clip (2026-06)
+- ✅ **Salva JPG**: pulsante header cattura il frame corrente e lo scarica (`polytype-<ts>.jpg`, JPEG q0.95). Renderer canvas dedicato (`src/lib/capture.js` → `paintScene`) che rispecchia lo stage (celle, testo orizz/vert, wrap, meta, duotone media via mapping luminanza per-pixel). Export a risoluzione `targetDims(aspect)` (long edge ≤1920).
+- ✅ **Registra clip**: pulsante toggle Rec/Stop REC → `canvas.captureStream(30)` + `MediaRecorder`. Preferisce **MP4** (avc1) con fallback WebM; nome file con estensione coerente. Media on-screen marcati con `data-clip-id` e disegnati sul canvas durante la registrazione. Verificato: JPG scaricato + clip MP4 258KB valida (screenshot test).
+

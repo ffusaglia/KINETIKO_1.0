@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Maximize2, ExternalLink, Shuffle, Play, Pause, Upload, Trash2, Zap, Mic, MicOff, Activity } from "lucide-react";
+import { Maximize2, ExternalLink, Shuffle, Play, Pause, Upload, Trash2, Zap, Mic, MicOff, Activity, Camera, Video, Square } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,6 +8,7 @@ import { ProSlider } from "@/components/ProSlider";
 import GridStage from "@/components/GridStage";
 import { ASPECTS } from "@/lib/render";
 import { GRID_FONTS, defaultGridConfig, deriveTokens, buildScene, randomRatios, mutateRatios, topologyWeights, ratioSpread } from "@/lib/grid";
+import { paintScene, targetDims, pickVideoMime, downloadBlob } from "@/lib/capture";
 
 export default function GridStudio() {
   const [config, setConfig] = useState(defaultGridConfig);
@@ -17,6 +18,7 @@ export default function GridStudio() {
   const [micOn, setMicOn] = useState(false);
   const [levels, setLevels] = useState({ bass: 0, mid: 0, high: 0 });
   const [fs, setFs] = useState(false);
+  const [recording, setRecording] = useState(false);
   const stageWrapRef = useRef(null);
   const channelRef = useRef(null);
   const inputRef = useRef(null);
@@ -28,6 +30,10 @@ export default function GridStudio() {
   const stepRef = useRef(0);
   const lastBcRef = useRef(0);
   const audioParamsRef = useRef({});
+  const sceneRef = useRef(null);
+  const configRef = useRef(config);
+  const recRef = useRef(null);
+  const recRafRef = useRef(0);
   sensRef.current = config.micSens;
   audioParamsRef.current = { band: config.audioBand, sens: config.micSens, ib: config.intBass, im: config.intMid, ih: config.intHigh };
 
@@ -45,6 +51,8 @@ export default function GridStudio() {
     () => buildScene(topoSeed, cellCount, tokens, config.media.clips, ratios),
     [topoSeed, cellCount, tokens, config.media.clips, ratios]
   );
+  sceneRef.current = scene;
+  configRef.current = config;
 
   // Re-init ratios whenever topology, cell count or size-variance changes.
   useEffect(() => { setRatios(randomRatios(cellCount, config.sizeVar)); stepRef.current = 0; }, [topoSeed, cellCount, config.sizeVar]);
@@ -246,6 +254,62 @@ export default function GridStudio() {
   // Register custom fonts in the pop-out too.
   useEffect(() => { ch().postMessage({ type: "fonts", fonts: customFonts }); }, [customFonts]);
 
+  const gatherMedia = () => {
+    const map = {};
+    const el = stageWrapRef.current?.querySelector('[data-testid="grid-stage"]');
+    el?.querySelectorAll("[data-clip-id]").forEach((n) => { map[n.getAttribute("data-clip-id")] = n; });
+    return map;
+  };
+
+  const saveFrame = () => {
+    const { w, h } = targetDims(config.aspect);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    paintScene(ctx, sceneRef.current, configRef.current, w, h, gatherMedia());
+    canvas.toBlob((b) => {
+      if (!b) { toast.error("Impossibile salvare il frame"); return; }
+      downloadBlob(b, `polytype-${Date.now()}.jpg`);
+      toast.success("Frame salvato (JPG)");
+    }, "image/jpeg", 0.95);
+  };
+
+  const startRec = () => {
+    const { w, h } = targetDims(config.aspect);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    let stream;
+    try { stream = canvas.captureStream(30); } catch { toast.error("Registrazione non supportata dal browser"); return; }
+    const mime = pickVideoMime();
+    let rec;
+    try { rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 12_000_000 } : {}); }
+    catch { toast.error("Registrazione non supportata dal browser"); return; }
+    const chunks = [];
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = () => {
+      cancelAnimationFrame(recRafRef.current);
+      const type = rec.mimeType || mime || "video/webm";
+      const ext = type.includes("mp4") ? "mp4" : "webm";
+      const blob = new Blob(chunks, { type });
+      downloadBlob(blob, `polytype-${Date.now()}.${ext}`);
+      toast.success(`Clip salvata (${ext.toUpperCase()})`);
+    };
+    const loop = () => {
+      paintScene(ctx, sceneRef.current, configRef.current, w, h, gatherMedia());
+      recRafRef.current = requestAnimationFrame(loop);
+    };
+    recRafRef.current = requestAnimationFrame(loop);
+    rec.start();
+    recRef.current = rec;
+    setRecording(true);
+    const fmt = (mime || "").includes("mp4") ? "MP4" : "WEBM";
+    toast.success(`Registrazione avviata (${fmt}) — ripremi per stoppare`);
+  };
+  const stopRec = () => { try { recRef.current?.stop(); } catch { /* noop */ } recRef.current = null; setRecording(false); };
+  const toggleRec = () => (recording ? stopRec() : startRec());
+  useEffect(() => () => { if (recRef.current) { try { recRef.current.stop(); } catch { /* noop */ } } cancelAnimationFrame(recRafRef.current); }, []);
+
   const openPopout = () => window.open("/output", "vj-grid-output", "width=1280,height=720");
 
   return (
@@ -260,6 +324,14 @@ export default function GridStudio() {
               <h1 className="font-heading text-lg font-bold tracking-tight text-zinc-50">POLYTYPE · GRID ENGINE</h1>
             </div>
             <div className="flex items-center gap-2">
+              <button data-testid="grid-snapshot-button" onClick={saveFrame} className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 font-mono text-[11px] text-zinc-200 transition-all hover:bg-zinc-700 active:scale-95">
+                <Camera className="h-3.5 w-3.5" /> JPG
+              </button>
+              <button data-testid="grid-record-button" onClick={toggleRec}
+                className={`flex items-center gap-1.5 rounded border px-3 py-1.5 font-mono text-[11px] transition-all active:scale-95 ${recording ? "border-red-500/60 bg-red-500/20 text-red-400" : "border-zinc-700 bg-zinc-800 text-zinc-200 hover:bg-zinc-700"}`}>
+                {recording ? <Square className="h-3.5 w-3.5 fill-current" /> : <Video className="h-3.5 w-3.5" />}
+                {recording ? "Stop REC" : "Rec"}
+              </button>
               <button data-testid="grid-fullscreen-button" onClick={goFullscreen} className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 font-mono text-[11px] text-zinc-200 transition-all hover:bg-zinc-700 active:scale-95">
                 <Maximize2 className="h-3.5 w-3.5" /> Fullscreen
               </button>
