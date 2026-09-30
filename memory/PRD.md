@@ -92,3 +92,9 @@ Motore a griglia generativa BPM-driven ispirato al riferimento "303 MTL PLUGIN".
 - ✅ **Fade sulla rotazione**: quando il testo passa orizzontale↔verticale, entra con un leggero fade (`vj-fade`), niente più scatto.
 - ✅ **Avviso dimensione clip**: warning oltre 8MB, blocco oltre 40MB.
 - ✅ Testing agent iteration_7: 6/6 modifiche + regressioni al 100%.
+
+## GRID v6/v7 (2026-06)
+- ✅ Bug "parole sparite": auto-espansione celle (`cellCount = min(24, max(count, tokens+clips+1))`) — ogni parola e ogni clip ha il suo riquadro. KINETIC rimosso (GRID su "/"). Bottone "A capo" rimosso.
+- ✅ **Dynamic movement**: respiro continuo dei rettangoli via rAF, svincolato dai BPM (transizioni disattivate in dynamic). Testing iteration_8: 100%.
+- ✅ **Font esterni drag&drop** (.ttf/.otf) registrati + sincronizzati al pop-out; **pannello audio 3 bande** (bassi/medi/alti) con meter, intensità per banda, selezione banda reattiva e soglia. Testing iteration_9: 100%.
+- ⚠️ **Spout/Syphon**: non emettibile nativamente da browser. Pipeline reale: `/output` (finestra pulita) → OBS Studio + Spout2/Syphon (o NDI) → Resolume Arena.
