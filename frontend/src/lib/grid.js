@@ -6,8 +6,8 @@
 export const GRID_FONTS = ["Archivo Black", "Anton", "Bebas Neue", "Unbounded", "Syne", "Space Grotesk"];
 
 export const defaultGridConfig = {
-  text: "303 MTL PLUGIN",
-  metaText: "303MTLPLUGIN;POLYAMOR;124 BPM;IDX-949",
+  text: "KINETIKO VISUAL",
+  metaText: "TYPE;IMAGE;VIDEO;VISUAL TOOL",
   font: "Archivo Black",
   color1: "#FFFFFF",
   color2: "#1E32FF",
