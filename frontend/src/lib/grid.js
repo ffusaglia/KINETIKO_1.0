@@ -21,6 +21,10 @@ export const defaultGridConfig = {
   resizeMode: "all", // all | progressive
   dynamic: false,
   micSens: 1.35,
+  audioBand: "bass",
+  intBass: 1,
+  intMid: 1,
+  intHigh: 1,
   aspect: "16/9",
   media: { clips: [] },
 };

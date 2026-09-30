@@ -15,17 +15,21 @@ export default function GridStudio() {
   const [ratios, setRatios] = useState(() => randomRatios(defaultGridConfig.count, defaultGridConfig.sizeVar));
   const [playing, setPlaying] = useState(false);
   const [micOn, setMicOn] = useState(false);
-  const [level, setLevel] = useState(0);
+  const [levels, setLevels] = useState({ bass: 0, mid: 0, high: 0 });
   const [fs, setFs] = useState(false);
   const stageWrapRef = useRef(null);
   const channelRef = useRef(null);
   const inputRef = useRef(null);
+  const fontInputRef = useRef(null);
+  const [customFonts, setCustomFonts] = useState([]);
   const tapRef = useRef([]);
   const audioRef = useRef({});
   const sensRef = useRef(config.micSens);
   const stepRef = useRef(0);
   const lastBcRef = useRef(0);
+  const audioParamsRef = useRef({});
   sensRef.current = config.micSens;
+  audioParamsRef.current = { band: config.audioBand, sens: config.micSens, ib: config.intBass, im: config.intMid, ih: config.intHigh };
 
   const update = useCallback((patch) => setConfig((c) => ({ ...c, ...patch })), []);
   const tokens = useMemo(() => deriveTokens(config.text, false), [config.text]);
@@ -104,12 +108,13 @@ export default function GridStudio() {
     const onMsg = (e) => {
       if (e.data?.type === "request") {
         c.postMessage({ type: "media", clips: config.media.clips });
+        c.postMessage({ type: "fonts", fonts: customFonts });
         c.postMessage({ type: "scene", scene, config: lightConfig });
       }
     };
     c.addEventListener("message", onMsg);
     return () => c.removeEventListener("message", onMsg);
-  }, [scene, lightConfig, config.media.clips]);
+  }, [scene, lightConfig, config.media.clips, customFonts]);
 
   useEffect(() => {
     if (!playing || micOn) return;
@@ -153,7 +158,7 @@ export default function GridStudio() {
     if (a.ac) a.ac.close();
     audioRef.current = {};
     setMicOn(false);
-    setLevel(0);
+    setLevels({ bass: 0, mid: 0, high: 0 });
   }, []);
 
   const startMic = async () => {
@@ -162,19 +167,26 @@ export default function GridStudio() {
       const ac = new (window.AudioContext || window.webkitAudioContext)();
       const src = ac.createMediaStreamSource(stream);
       const analyser = ac.createAnalyser();
-      analyser.fftSize = 1024;
+      analyser.fftSize = 2048;
       src.connect(analyser);
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      let avg = 0, last = 0;
+      const bins = analyser.frequencyBinCount;
+      const data = new Uint8Array(bins);
+      const bandAvg = (arr, from, to) => {
+        let s = 0; const a = Math.floor(bins * from), b = Math.floor(bins * to);
+        for (let i = a; i < b; i++) s += arr[i];
+        return s / Math.max(1, b - a);
+      };
+      let avg = { bass: 0, mid: 0, high: 0 }, last = 0;
       const loop = () => {
         analyser.getByteFrequencyData(data);
-        let sum = 0; const N = 8;
-        for (let i = 0; i < N; i++) sum += data[i];
-        const energy = sum / N;
-        avg = avg * 0.92 + energy * 0.08;
-        setLevel(Math.min(1, energy / 200));
+        const p = audioParamsRef.current;
+        const raw = { bass: bandAvg(data, 0, 0.06), mid: bandAvg(data, 0.06, 0.25), high: bandAvg(data, 0.25, 0.6) };
+        const e = { bass: raw.bass * (p.ib || 1), mid: raw.mid * (p.im || 1), high: raw.high * (p.ih || 1) };
+        avg = { bass: avg.bass * 0.9 + e.bass * 0.1, mid: avg.mid * 0.9 + e.mid * 0.1, high: avg.high * 0.9 + e.high * 0.1 };
+        setLevels({ bass: Math.min(1, e.bass / 220), mid: Math.min(1, e.mid / 220), high: Math.min(1, e.high / 220) });
+        const band = p.band || "bass";
         const now = performance.now();
-        if (energy > avg * sensRef.current && energy > 45 && now - last > 150) { last = now; cutRef.current(); }
+        if (e[band] > avg[band] * (p.sens || 1.35) && e[band] > 40 && now - last > 130) { last = now; cutRef.current(); }
         audioRef.current.raf = requestAnimationFrame(loop);
       };
       audioRef.current = { stream, ac };
@@ -214,6 +226,25 @@ export default function GridStudio() {
     toast.success(`${clips.length} media aggiunto — appare in un riquadro`);
   };
   const removeClip = (id) => { setConfig((c) => ({ ...c, media: { clips: c.media.clips.filter((x) => x.id !== id) } })); setTopoSeed((s) => s + 1); };
+
+  const onFonts = async (files) => {
+    const list = Array.from(files).filter((f) => /\.(ttf|otf|woff2?)$/i.test(f.name));
+    if (!list.length) { toast.error("Formati supportati: TTF, OTF"); return; }
+    const added = [];
+    for (const f of list) {
+      const family = (f.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9 ]/g, " ").trim() || "Custom Font");
+      const url = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(f); });
+      try {
+        const face = new FontFace(family, `url(${url})`);
+        await face.load();
+        document.fonts.add(face);
+        added.push({ family, url });
+      } catch { toast.error(`Impossibile caricare ${f.name}`); }
+    }
+    if (added.length) { setCustomFonts((p) => [...p.filter((x) => !added.some((a) => a.family === x.family)), ...added]); update({ font: added[0].family }); toast.success(`${added.length} font aggiunto`); }
+  };
+  // Register custom fonts in the pop-out too.
+  useEffect(() => { ch().postMessage({ type: "fonts", fonts: customFonts }); }, [customFonts]);
 
   const openPopout = () => window.open("/output", "vj-grid-output", "width=1280,height=720");
 
@@ -274,12 +305,30 @@ export default function GridStudio() {
             </div>
 
             {micOn && (
-              <div className="space-y-2">
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
-                  <div className="h-full rounded-full bg-emerald-500 transition-[width] duration-75" style={{ width: `${Math.max(3, level * 100)}%` }} data-testid="grid-audio-level" />
-                </div>
-                <ProSlider label="Sensibilità audio" testId="grid-sens-slider" value={config.micSens} min={1.05} max={2.5} step={0.05} reset={1.35} onChange={(v) => update({ micSens: v })} unit="x" />
-                <p className="font-mono text-[10px] text-zinc-500">Valori più bassi = più reattivo ai beat.</p>
+              <div className="space-y-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+                <span className="font-mono text-[11px] uppercase tracking-wider text-emerald-400">Analisi audio</span>
+                {[
+                  ["bass", "Bassi", "intBass", "grid-level-bass", "grid-int-bass"],
+                  ["mid", "Medi", "intMid", "grid-level-mid", "grid-int-mid"],
+                  ["high", "Alti", "intHigh", "grid-level-high", "grid-int-high"],
+                ].map(([key, label, intKey, lvlId, intId]) => (
+                  <div key={key} className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <button data-testid={`grid-band-${key}`} onClick={() => update({ audioBand: key })}
+                        className={`rounded px-2 py-0.5 font-mono text-[10px] uppercase transition-all ${config.audioBand === key ? "bg-emerald-500/25 text-emerald-300 ring-1 ring-emerald-500/50" : "text-zinc-400 hover:text-zinc-200"}`}>
+                        {config.audioBand === key ? "▶ " : ""}{label}
+                      </button>
+                      <span className="font-mono text-[10px] text-zinc-500">intensità {config[intKey].toFixed(1)}x</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
+                      <div data-testid={lvlId} className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.max(2, levels[key] * 100)}%` }} />
+                    </div>
+                    <input type="range" data-testid={intId} className="vj-slider w-full" min={0.3} max={3} step={0.1}
+                      value={config[intKey]} onChange={(e) => update({ [intKey]: parseFloat(e.target.value) })} />
+                  </div>
+                ))}
+                <ProSlider label="Sensibilità (soglia beat)" testId="grid-sens-slider" value={config.micSens} min={1.05} max={2.5} step={0.05} reset={1.35} onChange={(v) => update({ micSens: v })} unit="x" />
+                <p className="font-mono text-[10px] text-zinc-500">Scegli la banda (▶) a cui reagiscono i rettangoli. Sensibilità bassa = più reattivo.</p>
               </div>
             )}
 
@@ -343,9 +392,16 @@ export default function GridStudio() {
               <Select value={config.font} onValueChange={(v) => update({ font: v })}>
                 <SelectTrigger data-testid="grid-font-select" className="border-zinc-700 bg-zinc-900/80 text-sm text-zinc-200"><SelectValue /></SelectTrigger>
                 <SelectContent className="border-zinc-700 bg-zinc-900 text-zinc-200">
-                  {GRID_FONTS.map((f) => (<SelectItem key={f} value={f} style={{ fontFamily: `"${f}", sans-serif` }}>{f}</SelectItem>))}
+                  {[...GRID_FONTS, ...customFonts.map((f) => f.family)].map((f) => (<SelectItem key={f} value={f} style={{ fontFamily: `"${f}", sans-serif` }}>{f}</SelectItem>))}
                 </SelectContent>
               </Select>
+              <div onClick={() => fontInputRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); onFonts(e.dataTransfer.files); }}
+                data-testid="grid-font-dropzone"
+                className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/50 py-3 transition-all hover:border-emerald-500/50 hover:bg-emerald-500/5">
+                <Upload className="h-4 w-4 text-zinc-500" />
+                <span className="font-mono text-[11px] text-zinc-400">Trascina font (.ttf / .otf)</span>
+                <input ref={fontInputRef} type="file" accept=".ttf,.otf,.woff,.woff2" multiple hidden data-testid="grid-font-input" onChange={(e) => onFonts(e.target.files)} />
+              </div>
             </div>
 
             {/* Media */}
