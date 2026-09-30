@@ -23,6 +23,11 @@ export default function GridOutput() {
       if (d?.type === "media") {
         mediaRef.current = Object.fromEntries((d.clips || []).map((c) => [c.id, c]));
         setState((s) => ({ ...s, config: rebuild(s.config) }));
+      } else if (d?.type === "fonts") {
+        (d.fonts || []).forEach((f) => {
+          if (!document.fonts) return;
+          try { const face = new FontFace(f.family, `url(${f.url})`); face.load().then((ff) => document.fonts.add(ff)); } catch {}
+        });
       } else if (d?.type === "scene") {
         setState({ scene: d.scene, config: rebuild(d.config) });
       }
