@@ -33,7 +33,6 @@ export default function GridStudio() {
   const sceneRef = useRef(null);
   const configRef = useRef(config);
   const recRef = useRef(null);
-  const recRafRef = useRef(0);
   sensRef.current = config.micSens;
   audioParamsRef.current = { band: config.audioBand, sens: config.micSens, ib: config.intBass, im: config.intMid, ih: config.intHigh };
 
@@ -274,41 +273,44 @@ export default function GridStudio() {
     }, "image/jpeg", 0.95);
   };
 
-  const startRec = () => {
-    const { w, h } = targetDims(config.aspect);
-    const canvas = document.createElement("canvas");
-    canvas.width = w; canvas.height = h;
-    const ctx = canvas.getContext("2d");
+  const startRec = async () => {
+    if (!navigator.mediaDevices?.getDisplayMedia) { toast.error("Registrazione schermo non supportata dal browser"); return; }
     let stream;
-    try { stream = canvas.captureStream(30); } catch { toast.error("Registrazione non supportata dal browser"); return; }
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 60 },
+        audio: false,
+        preferCurrentTab: true,
+        selfBrowserSurface: "include",
+        surfaceSwitching: "exclude",
+      });
+    } catch { toast.error("Registrazione annullata"); return; }
     const mime = pickVideoMime();
     let rec;
-    try { rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 12_000_000 } : {}); }
-    catch { toast.error("Registrazione non supportata dal browser"); return; }
+    try { rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 16_000_000 } : {}); }
+    catch { stream.getTracks().forEach((t) => t.stop()); toast.error("Registrazione non supportata dal browser"); return; }
     const chunks = [];
     rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
     rec.onstop = () => {
-      cancelAnimationFrame(recRafRef.current);
+      stream.getTracks().forEach((t) => t.stop());
       const type = rec.mimeType || mime || "video/webm";
       const ext = type.includes("mp4") ? "mp4" : "webm";
-      const blob = new Blob(chunks, { type });
-      downloadBlob(blob, `polytype-${Date.now()}.${ext}`);
+      downloadBlob(new Blob(chunks, { type }), `polytype-${Date.now()}.${ext}`);
       toast.success(`Clip salvata (${ext.toUpperCase()})`);
+      recRef.current = null;
+      setRecording(false);
     };
-    const loop = () => {
-      paintScene(ctx, sceneRef.current, configRef.current, w, h, gatherMedia());
-      recRafRef.current = requestAnimationFrame(loop);
-    };
-    recRafRef.current = requestAnimationFrame(loop);
-    rec.start();
+    // If the user stops sharing from the browser bar, finalize the clip.
+    stream.getVideoTracks()[0].addEventListener("ended", () => { if (rec.state !== "inactive") rec.stop(); });
     recRef.current = rec;
+    rec.start(1000);
     setRecording(true);
     const fmt = (mime || "").includes("mp4") ? "MP4" : "WEBM";
-    toast.success(`Registrazione avviata (${fmt}) — ripremi per stoppare`);
+    toast.success(`Registrazione schermo avviata (${fmt}) — ripremi Stop per salvare`);
   };
-  const stopRec = () => { try { recRef.current?.stop(); } catch { /* noop */ } recRef.current = null; setRecording(false); };
+  const stopRec = () => { try { recRef.current?.stop(); } catch { /* noop */ } };
   const toggleRec = () => (recording ? stopRec() : startRec());
-  useEffect(() => () => { if (recRef.current) { try { recRef.current.stop(); } catch { /* noop */ } } cancelAnimationFrame(recRafRef.current); }, []);
+  useEffect(() => () => { if (recRef.current) { try { recRef.current.stop(); } catch { /* noop */ } } }, []);
 
   const openPopout = () => window.open("/output", "vj-grid-output", "width=1280,height=720");
 
