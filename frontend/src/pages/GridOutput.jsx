@@ -9,6 +9,7 @@ export default function GridOutput() {
   const [state, setState] = useState({
     scene: buildScene(1, defaultGridConfig.count, deriveTokens(defaultGridConfig.text, defaultGridConfig.wrap), [], null),
     config: defaultGridConfig,
+    selected: [],
   });
   const mediaRef = useRef({});
 
@@ -29,7 +30,7 @@ export default function GridOutput() {
           try { const face = new FontFace(f.family, `url(${f.url})`); face.load().then((ff) => document.fonts.add(ff)); } catch {}
         });
       } else if (d?.type === "scene") {
-        setState({ scene: d.scene, config: rebuild(d.config) });
+        setState({ scene: d.scene, config: rebuild(d.config), selected: d.selected || [] });
       }
     };
     ch.postMessage({ type: "request" });
@@ -39,7 +40,7 @@ export default function GridOutput() {
 
   return (
     <div className="h-screen w-screen bg-black">
-      <GridStage scene={state.scene} config={state.config} clean dynamic={state.config?.dynamic} />
+      <GridStage scene={state.scene} config={state.config} clean dynamic={state.config?.dynamic} selected={state.selected} />
     </div>
   );
 }

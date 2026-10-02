@@ -108,8 +108,8 @@ export default function GridStudio() {
     const now = performance.now();
     if (config.dynamic && now - lastBcRef.current < 40) return; // throttle to ~25fps during dynamic
     lastBcRef.current = now;
-    ch().postMessage({ type: "scene", scene, config: lightConfig });
-  }, [scene, lightConfig, config.dynamic]);
+    ch().postMessage({ type: "scene", scene, config: lightConfig, selected: selectedCells });
+  }, [scene, lightConfig, config.dynamic, selectedCells]);
   useEffect(() => { ch().postMessage({ type: "media", clips: config.media.clips }); }, [config.media.clips]);
   useEffect(() => {
     const c = ch();
@@ -117,12 +117,12 @@ export default function GridStudio() {
       if (e.data?.type === "request") {
         c.postMessage({ type: "media", clips: config.media.clips });
         c.postMessage({ type: "fonts", fonts: customFonts });
-        c.postMessage({ type: "scene", scene, config: lightConfig });
+        c.postMessage({ type: "scene", scene, config: lightConfig, selected: selectedCells });
       }
     };
     c.addEventListener("message", onMsg);
     return () => c.removeEventListener("message", onMsg);
-  }, [scene, lightConfig, config.media.clips, customFonts]);
+  }, [scene, lightConfig, config.media.clips, customFonts, selectedCells]);
 
   useEffect(() => {
     if (!playing || micOn) return;
