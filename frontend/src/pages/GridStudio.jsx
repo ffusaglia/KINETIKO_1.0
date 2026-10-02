@@ -266,7 +266,7 @@ export default function GridStudio() {
     const canvas = document.createElement("canvas");
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext("2d");
-    paintScene(ctx, sceneRef.current, configRef.current, w, h, gatherMedia());
+    paintScene(ctx, sceneRef.current, configRef.current, w, h, gatherMedia(), selectedCells);
     canvas.toBlob((b) => {
       if (!b) { toast.error("Impossibile salvare il frame"); return; }
       downloadBlob(b, `polytype-${Date.now()}.jpg`);

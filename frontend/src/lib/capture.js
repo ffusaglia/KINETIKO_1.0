@@ -138,6 +138,20 @@ export function paintScene(ctx, scene, config, W, H, mediaEls = {}, selected = [
       let cy = y + h / 2 - (lines.length * lineH) / 2 + lineH / 2;
       lines.forEach((line) => { ctx.fillText(line, x + w / 2, cy); cy += lineH; });
       setLS(ctx, 0);
+    } else if (a.type === "text" && selected.includes(i)) {
+      // Stretch: deform the token to fill the whole rectangle.
+      ctx.fillStyle = bg;
+      ctx.fillRect(x, y, w, h);
+      const g = measureGlyph(a.token, fam);
+      ctx.fillStyle = fg;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+      ctx.font = `900 100px ${fam}`;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(w / g.w, h / g.h);
+      ctx.fillText(a.token, 0, g.asc);
+      ctx.restore();
     } else {
       ctx.fillStyle = bg;
       ctx.fillRect(x, y, w, h);
