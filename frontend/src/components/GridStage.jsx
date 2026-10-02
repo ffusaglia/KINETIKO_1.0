@@ -128,9 +128,6 @@ export default function GridStage({ scene, config, clean = false, dynamic = fals
                 className="absolute overflow-hidden"
                 style={{ inset: "1.5px", cursor: interactive ? "pointer" : undefined }}>
                 <CellContent a={a} w={rect.width} h={rect.height} eff={eff} config={config} clips={clips} dynamic={dynamic} stretched={isSel} />
-                {isSel && !clean && (
-                  <div className="pointer-events-none absolute inset-0 z-10" style={{ boxShadow: "inset 0 0 0 2px #10B981" }} />
-                )}
               </div>
             </div>
           );
@@ -151,10 +148,12 @@ function CellContent({ a, w, h, eff, config, clips, dynamic, stretched = false }
   // non-uniform SVG viewBox. Re-renders with the live rect so it keeps deforming.
   if (stretched && a.type === "text") {
     const g = measureGlyph(a.token, fam);
+    const vertical = h > w * 1.2;
     return (
       <div className="h-full w-full" style={{ background: bg, transition: COLOR_TR }}>
-        <svg width="100%" height="100%" viewBox={`0 0 ${g.w} ${g.h}`} preserveAspectRatio="none" style={{ display: "block" }}>
-          <text x="0" y={g.asc} fontFamily={fam} fontWeight={900} fontSize={100} fill={fg}>{a.token}</text>
+        <svg width="100%" height="100%" viewBox={vertical ? `0 0 ${g.h} ${g.w}` : `0 0 ${g.w} ${g.h}`} preserveAspectRatio="none" style={{ display: "block" }}>
+          <text x="0" y={g.asc} fontFamily={fam} fontWeight={900} fontSize={100} fill={fg}
+            transform={vertical ? `translate(0 ${g.w}) rotate(-90)` : undefined}>{a.token}</text>
         </svg>
       </div>
     );

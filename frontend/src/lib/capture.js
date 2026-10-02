@@ -143,13 +143,20 @@ export function paintScene(ctx, scene, config, W, H, mediaEls = {}, selected = [
       ctx.fillStyle = bg;
       ctx.fillRect(x, y, w, h);
       const g = measureGlyph(a.token, fam);
+      const vertical = h > w * 1.2;
       ctx.fillStyle = fg;
       ctx.textAlign = "left";
       ctx.textBaseline = "alphabetic";
       ctx.font = `900 100px ${fam}`;
       ctx.save();
       ctx.translate(x, y);
-      ctx.scale(w / g.w, h / g.h);
+      if (vertical) {
+        ctx.scale(w / g.h, h / g.w);
+        ctx.translate(0, g.w);
+        ctx.rotate(-Math.PI / 2);
+      } else {
+        ctx.scale(w / g.w, h / g.h);
+      }
       ctx.fillText(a.token, 0, g.asc);
       ctx.restore();
     } else {
