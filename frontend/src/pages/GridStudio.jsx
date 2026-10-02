@@ -9,6 +9,7 @@ import GridStage from "@/components/GridStage";
 import { ASPECTS } from "@/lib/render";
 import { GRID_FONTS, defaultGridConfig, deriveTokens, buildScene, randomRatios, mutateRatios, topologyWeights, ratioSpread } from "@/lib/grid";
 import { paintScene, targetDims, pickVideoMime, downloadBlob } from "@/lib/capture";
+import { webmToMp4 } from "@/lib/mp4";
 
 export default function GridStudio() {
   const [config, setConfig] = useState(defaultGridConfig);
@@ -269,7 +270,7 @@ export default function GridStudio() {
     paintScene(ctx, sceneRef.current, configRef.current, w, h, gatherMedia(), selectedCells);
     canvas.toBlob((b) => {
       if (!b) { toast.error("Impossibile salvare il frame"); return; }
-      downloadBlob(b, `polytype-${Date.now()}.jpg`);
+      downloadBlob(b, `kinetiko-${Date.now()}.jpg`);
       toast.success("Frame salvato (JPG)");
     }, "image/jpeg", 0.95);
   };
@@ -303,24 +304,32 @@ export default function GridStudio() {
     catch { stream.getTracks().forEach((t) => t.stop()); toast.error("Registrazione non supportata dal browser"); return; }
     const chunks = [];
     rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-    rec.onstop = () => {
+    rec.onstop = async () => {
       stream.getTracks().forEach((t) => t.stop());
-      const type = rec.mimeType || mime || "video/webm";
-      const ext = type.includes("mp4") ? "mp4" : "webm";
-      downloadBlob(new Blob(chunks, { type }), `polytype-${Date.now()}.${ext}`);
-      toast.success(`Clip salvata (${ext.toUpperCase()})`);
       recRef.current = null;
       setRecording(false);
+      const type = rec.mimeType || mime || "video/webm";
+      const ts = Date.now();
+      const blob = new Blob(chunks, { type });
+      if (type.includes("mp4")) { downloadBlob(blob, `kinetiko-${ts}.mp4`); toast.success("Clip salvata (MP4)"); return; }
+      const tid = toast.loading("Conversione in MP4… 0%");
+      try {
+        const mp4 = await webmToMp4(blob, (p) => toast.loading(`Conversione in MP4… ${Math.round(p * 100)}%`, { id: tid }));
+        downloadBlob(mp4, `kinetiko-${ts}.mp4`);
+        toast.success("Clip salvata (MP4)", { id: tid });
+      } catch (err) {
+        downloadBlob(blob, `kinetiko-${ts}.webm`);
+        toast.error("Conversione MP4 non riuscita: salvata in WebM", { id: tid });
+      }
     };
     // If the user stops sharing from the browser bar, finalize the clip.
     track.addEventListener("ended", () => { if (rec.state !== "inactive") rec.stop(); });
     recRef.current = rec;
     rec.start();
     setRecording(true);
-    const fmt = (mime || "").includes("mp4") ? "MP4" : "WEBM";
     toast.success(cropped
-      ? `Registro solo l'area grafica (${fmt}) — ripremi Stop per salvare`
-      : `Ritaglio non supportato: seleziona "Questa scheda". Registrazione (${fmt})`);
+      ? "Registro solo l'area grafica — ripremi Stop per salvare in MP4"
+      : 'Ritaglio non supportato: seleziona "Questa scheda". Output MP4');
   };
   const stopRec = () => { try { recRef.current?.stop(); } catch { /* noop */ } };
   const toggleRec = () => (recording ? stopRec() : startRec());
@@ -341,7 +350,7 @@ export default function GridStudio() {
           <header className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500 shadow-[0_0_10px_#10B981]" />
-              <h1 className="font-heading text-lg font-bold tracking-tight text-zinc-50">POLYTYPE · GRID ENGINE</h1>
+              <h1 className="font-heading text-lg font-bold tracking-tight text-zinc-50">KINETIKO · GRID VISUAL TOOL</h1>
             </div>
             <div className="flex items-center gap-2">
               <button data-testid="grid-snapshot-button" onClick={saveFrame} className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 font-mono text-[11px] text-zinc-200 transition-all hover:bg-zinc-700 active:scale-95">
