@@ -275,6 +275,7 @@ export default function GridStudio() {
 
   const startRec = async () => {
     if (!navigator.mediaDevices?.getDisplayMedia) { toast.error("Registrazione schermo non supportata dal browser"); return; }
+    const stageEl = stageWrapRef.current?.querySelector('[data-testid="grid-stage"]');
     let stream;
     try {
       stream = await navigator.mediaDevices.getDisplayMedia({
@@ -285,6 +286,16 @@ export default function GridStudio() {
         surfaceSwitching: "exclude",
       });
     } catch { toast.error("Registrazione annullata"); return; }
+    const [track] = stream.getVideoTracks();
+    // Region Capture: crop the tab capture down to ONLY the grid area.
+    let cropped = false;
+    try {
+      if (stageEl && window.CropTarget?.fromElement && typeof track.cropTo === "function") {
+        const target = await window.CropTarget.fromElement(stageEl);
+        await track.cropTo(target);
+        cropped = true;
+      }
+    } catch { cropped = false; }
     const mime = pickVideoMime();
     let rec;
     try { rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 16_000_000 } : {}); }
@@ -301,12 +312,14 @@ export default function GridStudio() {
       setRecording(false);
     };
     // If the user stops sharing from the browser bar, finalize the clip.
-    stream.getVideoTracks()[0].addEventListener("ended", () => { if (rec.state !== "inactive") rec.stop(); });
+    track.addEventListener("ended", () => { if (rec.state !== "inactive") rec.stop(); });
     recRef.current = rec;
     rec.start(1000);
     setRecording(true);
     const fmt = (mime || "").includes("mp4") ? "MP4" : "WEBM";
-    toast.success(`Registrazione schermo avviata (${fmt}) — ripremi Stop per salvare`);
+    toast.success(cropped
+      ? `Registro solo l'area grafica (${fmt}) — ripremi Stop per salvare`
+      : `Ritaglio non supportato: seleziona "Questa scheda". Registrazione (${fmt})`);
   };
   const stopRec = () => { try { recRef.current?.stop(); } catch { /* noop */ } };
   const toggleRec = () => (recording ? stopRec() : startRec());
