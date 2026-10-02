@@ -17,6 +17,15 @@ function ctx() {
   if (!_ctx) _ctx = document.createElement("canvas").getContext("2d");
   return _ctx;
 }
+// Natural glyph box of a single line at 100px — used to stretch text to a cell.
+function measureGlyph(text, font) {
+  const c = ctx();
+  c.font = `900 100px ${font}`;
+  const m = c.measureText(text || " ");
+  const asc = m.actualBoundingBoxAscent || 73;
+  const desc = m.actualBoundingBoxDescent || 0;
+  return { w: Math.max(1, m.width), asc, h: Math.max(1, asc + desc) };
+}
 function textWidthAt1px(text, font) {
   const c = ctx();
   c.font = `900 100px ${font}`;
@@ -61,7 +70,7 @@ function fitLines(lines, w, h, font) {
   return Math.max(6, Math.min(byW, byH));
 }
 
-export default function GridStage({ scene, config, clean = false, dynamic = false }) {
+export default function GridStage({ scene, config, clean = false, dynamic = false, selected = [], onCellClick }) {
   const wrapRef = useRef(null);
   const [dims, setDims] = useState({ w: 0, h: 0 });
   const [, setFontTick] = useState(0);
@@ -111,10 +120,17 @@ export default function GridStage({ scene, config, clean = false, dynamic = fals
           const a = scene.assign[i];
           if (!a || !c) return null;
           const rect = { left: c.x * dims.w, top: c.y * dims.h, width: c.w * dims.w, height: c.h * dims.h };
+          const isSel = selected.includes(i);
+          const interactive = !clean && !!onCellClick;
           return (
             <div key={i} className="absolute" style={{ ...rect, transition: dynamic ? "none" : `left ${DUR} ${EASE}, top ${DUR} ${EASE}, width ${DUR} ${EASE}, height ${DUR} ${EASE}` }}>
-              <div className="absolute overflow-hidden" style={{ inset: "1.5px" }}>
-                <CellContent a={a} w={rect.width} h={rect.height} eff={eff} config={config} clips={clips} dynamic={dynamic} />
+              <div onClick={interactive ? () => onCellClick(i) : undefined}
+                className="absolute overflow-hidden"
+                style={{ inset: "1.5px", cursor: interactive ? "pointer" : undefined }}>
+                <CellContent a={a} w={rect.width} h={rect.height} eff={eff} config={config} clips={clips} dynamic={dynamic} stretched={isSel} />
+                {isSel && !clean && (
+                  <div className="pointer-events-none absolute inset-0 z-10" style={{ boxShadow: "inset 0 0 0 2px #10B981" }} />
+                )}
               </div>
             </div>
           );
@@ -125,11 +141,24 @@ export default function GridStage({ scene, config, clean = false, dynamic = fals
   );
 }
 
-function CellContent({ a, w, h, eff, config, clips, dynamic }) {
+function CellContent({ a, w, h, eff, config, clips, dynamic, stretched = false }) {
   const bg = a.inv ? eff.fg : eff.bg;
   const fg = a.inv ? eff.bg : eff.fg;
   const fam = `"${config.font}", sans-serif`;
   const fsTr = dynamic ? "color 0.4s ease-in-out" : `font-size ${DUR} ${EASE}, color 0.4s ease-in-out`;
+
+  // STRETCH mode (cell clicked): text deforms to fill the whole rectangle via a
+  // non-uniform SVG viewBox. Re-renders with the live rect so it keeps deforming.
+  if (stretched && a.type === "text") {
+    const g = measureGlyph(a.token, fam);
+    return (
+      <div className="h-full w-full" style={{ background: bg, transition: COLOR_TR }}>
+        <svg width="100%" height="100%" viewBox={`0 0 ${g.w} ${g.h}`} preserveAspectRatio="none" style={{ display: "block" }}>
+          <text x="0" y={g.asc} fontFamily={fam} fontWeight={900} fontSize={100} fill={fg}>{a.token}</text>
+        </svg>
+      </div>
+    );
+  }
 
   if (a.type === "meta") {
     const lines = (config.metaText || "").split(";").map((s) => s.trim().toUpperCase()).filter(Boolean);

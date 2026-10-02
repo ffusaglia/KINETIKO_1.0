@@ -19,6 +19,7 @@ export default function GridStudio() {
   const [levels, setLevels] = useState({ bass: 0, mid: 0, high: 0 });
   const [fs, setFs] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [selectedCells, setSelectedCells] = useState([]);
   const stageWrapRef = useRef(null);
   const channelRef = useRef(null);
   const inputRef = useRef(null);
@@ -325,6 +326,10 @@ export default function GridStudio() {
   const toggleRec = () => (recording ? stopRec() : startRec());
   useEffect(() => () => { if (recRef.current) { try { recRef.current.stop(); } catch { /* noop */ } } }, []);
 
+  const toggleCell = useCallback((i) => {
+    setSelectedCells((s) => (s.includes(i) ? s.filter((x) => x !== i) : [...s, i]));
+  }, []);
+
   const openPopout = () => window.open("/output", "vj-grid-output", "width=1280,height=720");
 
   return (
@@ -366,8 +371,16 @@ export default function GridStudio() {
           </div>
 
           <div ref={stageWrapRef} className={`relative flex-1 overflow-hidden rounded-lg border border-zinc-800 bg-black ${fs ? "border-none" : ""}`}>
-            <GridStage scene={scene} config={config} clean={fs} dynamic={config.dynamic} />
+            <GridStage scene={scene} config={config} clean={fs} dynamic={config.dynamic} selected={selectedCells} onCellClick={toggleCell} />
           </div>
+          {!fs && (
+            <p className="font-mono text-[10px] text-zinc-500">
+              Clicca un rettangolo per far <span className="text-emerald-400">deformare il testo</span> fino a riempirlo (clicca di nuovo per annullare).
+              {selectedCells.length > 0 && (
+                <button data-testid="grid-clear-stretch" onClick={() => setSelectedCells([])} className="ml-2 rounded border border-zinc-700 px-2 py-0.5 text-zinc-300 hover:bg-zinc-800">Azzera stretch ({selectedCells.length})</button>
+              )}
+            </p>
+          )}
         </section>
 
         {/* RIGHT */}
@@ -508,7 +521,7 @@ export default function GridStudio() {
               ))}
             </div>
 
-            <button data-testid="grid-reset-button" onClick={() => { stopMic(); setConfig(defaultGridConfig); setTopoSeed(1); setRatios(randomRatios(defaultGridConfig.count, defaultGridConfig.sizeVar)); setPlaying(false); }}
+            <button data-testid="grid-reset-button" onClick={() => { stopMic(); setConfig(defaultGridConfig); setTopoSeed(1); setRatios(randomRatios(defaultGridConfig.count, defaultGridConfig.sizeVar)); setPlaying(false); setSelectedCells([]); }}
               className="w-full rounded border border-zinc-700 bg-zinc-800 py-2 font-mono text-[11px] uppercase tracking-wider text-zinc-300 transition-all hover:bg-zinc-700">
               Reset
             </button>

@@ -56,6 +56,14 @@ function hexToRgb(hex) {
   const n = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
   return [parseInt(n.slice(0, 2), 16), parseInt(n.slice(2, 4), 16), parseInt(n.slice(4, 6), 16)];
 }
+function measureGlyph(text, font) {
+  const c = mctx();
+  c.font = `900 100px ${font}`;
+  const m = c.measureText(text || " ");
+  const asc = m.actualBoundingBoxAscent || 73;
+  const desc = m.actualBoundingBoxDescent || 0;
+  return { w: Math.max(1, m.width), asc, h: Math.max(1, asc + desc) };
+}
 
 function drawDuotone(ctx, el, x, y, w, h, c0, c1) {
   const iw = el.videoWidth || el.naturalWidth || el.width;
@@ -84,7 +92,7 @@ function drawDuotone(ctx, el, x, y, w, h, c0, c1) {
 
 function setLS(ctx, px) { try { ctx.letterSpacing = `${px}px`; } catch { /* unsupported */ } }
 
-export function paintScene(ctx, scene, config, W, H, mediaEls = {}) {
+export function paintScene(ctx, scene, config, W, H, mediaEls = {}, selected = []) {
   if (!scene || !scene.cells) return;
   const eff = effectivePalette(config.color1, config.color2, config.invert);
   const fam = `"${config.font}", sans-serif`;
