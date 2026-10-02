@@ -9,6 +9,7 @@ export const defaultGridConfig = {
   text: "KINETIKO VISUAL",
   metaText: "TYPE;IMAGE;VIDEO;VISUAL TOOL",
   font: "Archivo Black",
+  metaFont: "Archivo Black",
   color1: "#FFFFFF",
   color2: "#1E32FF",
   invert: false,

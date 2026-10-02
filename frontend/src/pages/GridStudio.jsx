@@ -497,9 +497,16 @@ export default function GridStudio() {
 
             {/* Font */}
             <div className="space-y-1.5">
-              <span className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">Font</span>
+              <span className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">Font celle testo</span>
               <Select value={config.font} onValueChange={(v) => update({ font: v })}>
                 <SelectTrigger data-testid="grid-font-select" className="border-zinc-700 bg-zinc-900/80 text-sm text-zinc-200"><SelectValue /></SelectTrigger>
+                <SelectContent className="border-zinc-700 bg-zinc-900 text-zinc-200">
+                  {[...GRID_FONTS, ...customFonts.map((f) => f.family)].map((f) => (<SelectItem key={f} value={f} style={{ fontFamily: `"${f}", sans-serif` }}>{f}</SelectItem>))}
+                </SelectContent>
+              </Select>
+              <span className="mt-1 block font-mono text-[11px] uppercase tracking-wider text-zinc-400">Font casella info (meta)</span>
+              <Select value={config.metaFont || config.font} onValueChange={(v) => update({ metaFont: v })}>
+                <SelectTrigger data-testid="grid-meta-font-select" className="border-zinc-700 bg-zinc-900/80 text-sm text-zinc-200"><SelectValue /></SelectTrigger>
                 <SelectContent className="border-zinc-700 bg-zinc-900 text-zinc-200">
                   {[...GRID_FONTS, ...customFonts.map((f) => f.family)].map((f) => (<SelectItem key={f} value={f} style={{ fontFamily: `"${f}", sans-serif` }}>{f}</SelectItem>))}
                 </SelectContent>

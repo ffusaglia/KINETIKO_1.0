@@ -96,6 +96,7 @@ export function paintScene(ctx, scene, config, W, H, mediaEls = {}, selected = [
   if (!scene || !scene.cells) return;
   const eff = effectivePalette(config.color1, config.color2, config.invert);
   const fam = `"${config.font}", sans-serif`;
+  const metaFam = `"${config.metaFont || config.font}", sans-serif`;
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = eff.fg;
   ctx.fillRect(0, 0, W, H);
@@ -128,9 +129,9 @@ export function paintScene(ctx, scene, config, W, H, mediaEls = {}, selected = [
       ctx.fillRect(x, y, w, h);
       const ls = (config.metaText || "").split(";").map((s) => s.trim().toUpperCase()).filter(Boolean);
       const lines = ls.length ? ls : [" "];
-      const fs = fitLines(lines, w, h, fam);
+      const fs = fitLines(lines, w, h, metaFam);
       ctx.fillStyle = fg;
-      ctx.font = `900 ${fs}px ${fam}`;
+      ctx.font = `900 ${fs}px ${metaFam}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       setLS(ctx, -0.02 * fs);

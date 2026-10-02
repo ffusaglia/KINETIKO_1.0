@@ -142,6 +142,7 @@ function CellContent({ a, w, h, eff, config, clips, dynamic, stretched = false }
   const bg = a.inv ? eff.fg : eff.bg;
   const fg = a.inv ? eff.bg : eff.fg;
   const fam = `"${config.font}", sans-serif`;
+  const metaFam = `"${config.metaFont || config.font}", sans-serif`;
   const fsTr = dynamic ? "color 0.4s ease-in-out" : `font-size ${DUR} ${EASE}, color 0.4s ease-in-out`;
 
   // STRETCH mode (cell clicked): text deforms to fill the whole rectangle via a
@@ -161,11 +162,11 @@ function CellContent({ a, w, h, eff, config, clips, dynamic, stretched = false }
 
   if (a.type === "meta") {
     const lines = (config.metaText || "").split(";").map((s) => s.trim().toUpperCase()).filter(Boolean);
-    const fs = fitLines(lines.length ? lines : [" "], w, h, fam);
+    const fs = fitLines(lines.length ? lines : [" "], w, h, metaFam);
     return (
       <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden text-center" style={{ background: bg, transition: COLOR_TR }}>
         {lines.map((line, li) => (
-          <span key={li} style={{ color: fg, fontFamily: fam, fontWeight: 900, fontSize: fs, lineHeight: 1.02, letterSpacing: "-0.02em", whiteSpace: "nowrap", transition: fsTr }}>
+          <span key={li} style={{ color: fg, fontFamily: metaFam, fontWeight: 900, fontSize: fs, lineHeight: 1.02, letterSpacing: "-0.02em", whiteSpace: "nowrap", transition: fsTr }}>
             {line}
           </span>
         ))}

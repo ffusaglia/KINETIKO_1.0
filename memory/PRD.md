@@ -99,6 +99,9 @@ Motore a griglia generativa BPM-driven ispirato al riferimento "303 MTL PLUGIN".
 - ✅ **Font esterni drag&drop** (.ttf/.otf) registrati + sincronizzati al pop-out; **pannello audio 3 bande** (bassi/medi/alti) con meter, intensità per banda, selezione banda reattiva e soglia. Testing iteration_9: 100%.
 - ⚠️ **Spout/Syphon**: non emettibile nativamente da browser. Pipeline reale: `/output` (finestra pulita) → OBS Studio + Spout2/Syphon (o NDI) → Resolume Arena.
 
+## KINETIKO v10 — font separati testo/meta (2026-06)
+- ✅ **Font separato per celle testo e casella info**: nuovo `metaFont` in config. Due `<Select>` in UI ("Font celle testo" `grid-font-select`, "Font casella info (meta)" `grid-meta-font-select`), entrambi con Google + font custom. Celle testo usano `config.font`, cella meta usa `config.metaFont`. Applicato in `GridStage` (`metaFam`) e `capture.js` (JPG/rec). Si propaga al pop-out via `lightConfig`. Verificato: meta=Bebas Neue, testo=Archivo Black.
+
 ## KINETIKO v9 — Export MP4 in-app + 3:4 + rebrand (2026-06)
 - ✅ **Export MP4 automatico**: dopo lo stop, la clip WebM/VP9 viene transcodificata in **MP4 H.264** (yuv420p, +faststart, dimensioni forzate pari) via **ffmpeg.wasm** (`src/lib/mp4.js`), con toast di avanzamento %. Core servito localmente da `/public/ffmpeg` (no CDN). Fallback a WebM se la conversione fallisce. Validato con PyAV: H.264 1920×1080 yuv420p, durata corretta. File salvati come `kinetiko-<ts>.mp4/.jpg`.
 - ✅ **Aspect 3:4**: aggiunto ad `ASPECTS` in `render.js` (ora 16:9, 4:3, 3:4, 1:1, 9:16, 21:9).
