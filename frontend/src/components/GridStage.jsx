@@ -18,9 +18,9 @@ function ctx() {
   return _ctx;
 }
 // Natural glyph box of a single line at 100px — used to stretch text to a cell.
-function measureGlyph(text, font) {
+function measureGlyph(text, font, weight = 900) {
   const c = ctx();
-  c.font = `900 100px ${font}`;
+  c.font = `${weight} 100px ${font}`;
   const m = c.measureText(text || " ");
   const asc = m.actualBoundingBoxAscent || 73;
   const desc = m.actualBoundingBoxDescent || 0;
@@ -143,17 +143,19 @@ function CellContent({ a, w, h, eff, config, clips, dynamic, stretched = false }
   const fg = a.inv ? eff.bg : eff.fg;
   const fam = `"${config.font}", sans-serif`;
   const metaFam = `"${config.metaFont || config.font}", sans-serif`;
+  const wt = config.fontWeight || 900;
+  const mwt = config.metaWeight || 900;
   const fsTr = dynamic ? "color 0.4s ease-in-out" : `font-size ${DUR} ${EASE}, color 0.4s ease-in-out`;
 
   // STRETCH mode (cell clicked): text deforms to fill the whole rectangle via a
   // non-uniform SVG viewBox. Re-renders with the live rect so it keeps deforming.
   if (stretched && a.type === "text") {
-    const g = measureGlyph(a.token, fam);
+    const g = measureGlyph(a.token, fam, wt);
     const vertical = h > w * 1.2;
     return (
       <div className="h-full w-full" style={{ background: bg, transition: COLOR_TR }}>
         <svg width="100%" height="100%" viewBox={vertical ? `0 0 ${g.h} ${g.w}` : `0 0 ${g.w} ${g.h}`} preserveAspectRatio="none" style={{ display: "block" }}>
-          <text x="0" y={g.asc} fontFamily={fam} fontWeight={900} fontSize={100} fill={fg}
+          <text x="0" y={g.asc} fontFamily={fam} fontWeight={wt} fontSize={100} fill={fg}
             transform={vertical ? `translate(0 ${g.w}) rotate(-90)` : undefined}>{a.token}</text>
         </svg>
       </div>
@@ -161,12 +163,29 @@ function CellContent({ a, w, h, eff, config, clips, dynamic, stretched = false }
   }
 
   if (a.type === "meta") {
-    const lines = (config.metaText || "").split(";").map((s) => s.trim().toUpperCase()).filter(Boolean);
+    const lines = (config.metaText || "").split(";").map((s) => s.trim()).filter(Boolean);
     const fs = fitLines(lines.length ? lines : [" "], w, h, metaFam);
+    const align = config.metaAlign || "center";
+    const itemsClass = align === "left" ? "items-start" : align === "right" ? "items-end" : "items-center";
+    if (align === "justify") {
+      // Each line stretched edge-to-edge to fill the full width.
+      return (
+        <div className="flex h-full w-full flex-col justify-center overflow-hidden" style={{ background: bg, transition: COLOR_TR }}>
+          {lines.map((line, li) => {
+            const g = measureGlyph(line, metaFam, mwt);
+            return (
+              <svg key={li} width="100%" height={fs * 1.02} viewBox={`0 0 ${g.w} ${g.h}`} preserveAspectRatio="none" style={{ display: "block" }}>
+                <text x="0" y={g.asc} fontFamily={metaFam} fontWeight={mwt} fill={fg} fontSize={100}>{line}</text>
+              </svg>
+            );
+          })}
+        </div>
+      );
+    }
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden text-center" style={{ background: bg, transition: COLOR_TR }}>
+      <div className={`flex h-full w-full flex-col justify-center overflow-hidden ${itemsClass}`} style={{ background: bg, transition: COLOR_TR }}>
         {lines.map((line, li) => (
-          <span key={li} style={{ color: fg, fontFamily: metaFam, fontWeight: 900, fontSize: fs, lineHeight: 1.02, letterSpacing: "-0.02em", whiteSpace: "nowrap", transition: fsTr }}>
+          <span key={li} style={{ color: fg, fontFamily: metaFam, fontWeight: mwt, fontSize: fs, lineHeight: 1.02, letterSpacing: "-0.02em", whiteSpace: "nowrap", transition: fsTr }}>
             {line}
           </span>
         ))}
@@ -196,7 +215,7 @@ function CellContent({ a, w, h, eff, config, clips, dynamic, stretched = false }
     return (
       <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden text-center" style={{ background: bg, transition: COLOR_TR }}>
         {fit.lines.map((line, li) => (
-          <span key={li} style={{ color: fg, fontFamily: fam, fontWeight: 900, fontSize: fit.fontSize, lineHeight: 0.98, letterSpacing: "-0.03em", textTransform: "uppercase", whiteSpace: "nowrap", transition: fsTr }}>
+          <span key={li} style={{ color: fg, fontFamily: fam, fontWeight: wt, fontSize: fit.fontSize, lineHeight: 0.98, letterSpacing: "-0.03em", whiteSpace: "nowrap", transition: fsTr }}>
             {line}
           </span>
         ))}
@@ -212,7 +231,7 @@ function CellContent({ a, w, h, eff, config, clips, dynamic, stretched = false }
   return (
     <div className="flex h-full w-full items-center justify-center overflow-hidden" style={{ background: bg, transition: COLOR_TR }}>
       <span key={vertical ? "v" : "h"} className="vj-fade"
-        style={{ color: fg, fontFamily: fam, fontWeight: 900, fontSize, lineHeight: 0.82, letterSpacing: "-0.03em", textTransform: "uppercase", whiteSpace: "nowrap", transform: vertical ? "rotate(-90deg)" : "none", transformOrigin: "center", transition: fsTr }}>
+        style={{ color: fg, fontFamily: fam, fontWeight: wt, fontSize, lineHeight: 0.82, letterSpacing: "-0.03em", whiteSpace: "nowrap", transform: vertical ? "rotate(-90deg)" : "none", transformOrigin: "center", transition: fsTr }}>
         {a.token}
       </span>
     </div>

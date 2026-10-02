@@ -56,9 +56,9 @@ function hexToRgb(hex) {
   const n = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
   return [parseInt(n.slice(0, 2), 16), parseInt(n.slice(2, 4), 16), parseInt(n.slice(4, 6), 16)];
 }
-function measureGlyph(text, font) {
+function measureGlyph(text, font, weight = 900) {
   const c = mctx();
-  c.font = `900 100px ${font}`;
+  c.font = `${weight} 100px ${font}`;
   const m = c.measureText(text || " ");
   const asc = m.actualBoundingBoxAscent || 73;
   const desc = m.actualBoundingBoxDescent || 0;
@@ -97,6 +97,8 @@ export function paintScene(ctx, scene, config, W, H, mediaEls = {}, selected = [
   const eff = effectivePalette(config.color1, config.color2, config.invert);
   const fam = `"${config.font}", sans-serif`;
   const metaFam = `"${config.metaFont || config.font}", sans-serif`;
+  const wt = config.fontWeight || 900;
+  const mwt = config.metaWeight || 900;
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = eff.fg;
   ctx.fillRect(0, 0, W, H);
@@ -127,28 +129,46 @@ export function paintScene(ctx, scene, config, W, H, mediaEls = {}, selected = [
     } else if (a.type === "meta") {
       ctx.fillStyle = bg;
       ctx.fillRect(x, y, w, h);
-      const ls = (config.metaText || "").split(";").map((s) => s.trim().toUpperCase()).filter(Boolean);
+      const ls = (config.metaText || "").split(";").map((s) => s.trim()).filter(Boolean);
       const lines = ls.length ? ls : [" "];
+      const align = config.metaAlign || "center";
       const fs = fitLines(lines, w, h, metaFam);
-      ctx.fillStyle = fg;
-      ctx.font = `900 ${fs}px ${metaFam}`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      setLS(ctx, -0.02 * fs);
       const lineH = fs * 1.04;
-      let cy = y + h / 2 - (lines.length * lineH) / 2 + lineH / 2;
-      lines.forEach((line) => { ctx.fillText(line, x + w / 2, cy); cy += lineH; });
-      setLS(ctx, 0);
+      ctx.fillStyle = fg;
+      if (align === "justify") {
+        ctx.textAlign = "left";
+        ctx.textBaseline = "alphabetic";
+        let ty = y + h / 2 - (lines.length * lineH) / 2;
+        lines.forEach((line) => {
+          const g = measureGlyph(line, metaFam, mwt);
+          ctx.save();
+          ctx.translate(x + w * 0.01, ty);
+          ctx.scale((w * 0.98) / g.w, (fs * 1.02) / g.h);
+          ctx.font = `${mwt} 100px ${metaFam}`;
+          ctx.fillText(line, 0, g.asc);
+          ctx.restore();
+          ty += lineH;
+        });
+      } else {
+        ctx.font = `${mwt} ${fs}px ${metaFam}`;
+        ctx.textBaseline = "middle";
+        ctx.textAlign = align === "left" ? "left" : align === "right" ? "right" : "center";
+        const ax = align === "left" ? x + w * 0.02 : align === "right" ? x + w * 0.98 : x + w / 2;
+        setLS(ctx, -0.02 * fs);
+        let cy = y + h / 2 - (lines.length * lineH) / 2 + lineH / 2;
+        lines.forEach((line) => { ctx.fillText(line, ax, cy); cy += lineH; });
+        setLS(ctx, 0);
+      }
     } else if (a.type === "text" && selected.includes(i)) {
       // Stretch: deform the token to fill the whole rectangle.
       ctx.fillStyle = bg;
       ctx.fillRect(x, y, w, h);
-      const g = measureGlyph(a.token, fam);
+      const g = measureGlyph(a.token, fam, wt);
       const vertical = h > w * 1.2;
       ctx.fillStyle = fg;
       ctx.textAlign = "left";
       ctx.textBaseline = "alphabetic";
-      ctx.font = `900 100px ${fam}`;
+      ctx.font = `${wt} 100px ${fam}`;
       ctx.save();
       ctx.translate(x, y);
       if (vertical) {
@@ -169,7 +189,7 @@ export function paintScene(ctx, scene, config, W, H, mediaEls = {}, selected = [
       const words = a.token.split(" ").filter(Boolean);
       if (words.length > 1) {
         const fit = fitWrapped(words, w, h, fam);
-        ctx.font = `900 ${fit.fontSize}px ${fam}`;
+        ctx.font = `${wt} ${fit.fontSize}px ${fam}`;
         setLS(ctx, -0.03 * fit.fontSize);
         const lineH = fit.fontSize * 0.98;
         let cy = y + h / 2 - (fit.lines.length * lineH) / 2 + lineH / 2;
@@ -181,7 +201,7 @@ export function paintScene(ctx, scene, config, W, H, mediaEls = {}, selected = [
         const availThick = vertical ? w : h;
         const perPx = textWidthAt1px(a.token, fam) || 1;
         const fontSize = Math.max(6, Math.min((availLong * 0.94) / perPx, availThick * 0.82));
-        ctx.font = `900 ${fontSize}px ${fam}`;
+        ctx.font = `${wt} ${fontSize}px ${fam}`;
         setLS(ctx, -0.03 * fontSize);
         if (vertical) {
           ctx.translate(x + w / 2, y + h / 2);

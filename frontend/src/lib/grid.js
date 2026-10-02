@@ -10,6 +10,9 @@ export const defaultGridConfig = {
   metaText: "TYPE;IMAGE;VIDEO;VISUAL TOOL",
   font: "Archivo Black",
   metaFont: "Archivo Black",
+  fontWeight: 900,
+  metaWeight: 900,
+  metaAlign: "center",
   color1: "#FFFFFF",
   color2: "#1E32FF",
   invert: false,
@@ -37,7 +40,7 @@ export function effectivePalette(color1, color2, invert) {
 
 export function deriveTokens(text, wrap) {
   const parts = wrap ? (text || "").split(";") : (text || "").split(/[;\s]+/);
-  return parts.map((t) => t.trim()).filter(Boolean).map((t) => t.toUpperCase());
+  return parts.map((t) => t.trim()).filter(Boolean);
 }
 
 function rng(seed) {

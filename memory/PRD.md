@@ -99,6 +99,11 @@ Motore a griglia generativa BPM-driven ispirato al riferimento "303 MTL PLUGIN".
 - ✅ **Font esterni drag&drop** (.ttf/.otf) registrati + sincronizzati al pop-out; **pannello audio 3 bande** (bassi/medi/alti) con meter, intensità per banda, selezione banda reattiva e soglia. Testing iteration_9: 100%.
 - ⚠️ **Spout/Syphon**: non emettibile nativamente da browser. Pipeline reale: `/output` (finestra pulita) → OBS Studio + Spout2/Syphon (o NDI) → Resolume Arena.
 
+## KINETIKO v11 — peso font, case-sensitive, allineamento meta (2026-06)
+- ✅ **Spessore font separato**: `fontWeight`/`metaWeight` in config, due `ProSlider` (100–900, reset 900) `grid-weight-slider` e `grid-meta-weight-slider`. Applicato ovunque in `GridStage`/`capture.js` (incluso stretch e measure). Ampliati i pesi Google in `index.html` (Inter/Unbounded/Space Grotesk/Syne/Playfair 100/200..900). Font a peso unico (Archivo Black/Anton/Bebas) non cambiano per natura.
+- ✅ **Testo case-sensitive**: rimosso `.toUpperCase()` in `deriveTokens`, nelle celle testo (no `textTransform`) e nella meta (GridStage + capture.js). Il testo rispetta ora le maiuscole/minuscole digitate.
+- ✅ **Allineamento casella info**: `metaAlign` = left|center|right|justify. 4 bottoni (`grid-meta-align-*`). Left/center/right via flex+textAlign; justify distende ogni riga a tutta larghezza (SVG `preserveAspectRatio=none` per riga nel live, scale non uniforme su canvas). Verificato live.
+
 ## KINETIKO v10 — font separati testo/meta (2026-06)
 - ✅ **Font separato per celle testo e casella info**: nuovo `metaFont` in config. Due `<Select>` in UI ("Font celle testo" `grid-font-select`, "Font casella info (meta)" `grid-meta-font-select`), entrambi con Google + font custom. Celle testo usano `config.font`, cella meta usa `config.metaFont`. Applicato in `GridStage` (`metaFam`) e `capture.js` (JPG/rec). Si propaga al pop-out via `lightConfig`. Verificato: meta=Bebas Neue, testo=Archivo Black.
 

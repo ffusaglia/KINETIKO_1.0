@@ -451,6 +451,17 @@ export default function GridStudio() {
               <label className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">Testo info (meta) · ; = a capo</label>
               <Textarea data-testid="grid-meta-input" value={config.metaText} onChange={(e) => update({ metaText: e.target.value })} rows={2} spellCheck={false}
                 className="resize-none border-zinc-700 bg-zinc-900/80 font-mono text-sm text-zinc-100 focus-visible:ring-emerald-500/40" placeholder="POLYAMOR;124 BPM;IDX-949" />
+              <div className="grid grid-cols-4 gap-1.5">
+                {[
+                  { k: "left", lbl: "Bandiera sx" },
+                  { k: "center", lbl: "Centro" },
+                  { k: "right", lbl: "Bandiera dx" },
+                  { k: "justify", lbl: "Giustifica" },
+                ].map((o) => (
+                  <button key={o.k} data-testid={`grid-meta-align-${o.k}`} onClick={() => update({ metaAlign: o.k })}
+                    className={`rounded px-1 py-1.5 font-mono text-[9px] uppercase tracking-wide transition-all ${(config.metaAlign || "center") === o.k ? "border border-emerald-500/50 bg-emerald-500/20 text-emerald-400" : "border border-zinc-800 bg-zinc-900 text-zinc-400 hover:bg-zinc-800"}`}>{o.lbl}</button>
+                ))}
+              </div>
             </div>
 
             <ProSlider label="BPM" testId="grid-bpm-slider" value={config.bpm} min={40} max={220} step={1} reset={124} onChange={(v) => update({ bpm: v })} />
@@ -511,6 +522,10 @@ export default function GridStudio() {
                   {[...GRID_FONTS, ...customFonts.map((f) => f.family)].map((f) => (<SelectItem key={f} value={f} style={{ fontFamily: `"${f}", sans-serif` }}>{f}</SelectItem>))}
                 </SelectContent>
               </Select>
+              <div className="pt-1">
+                <ProSlider label="Spessore testo" testId="grid-weight-slider" value={config.fontWeight ?? 900} min={100} max={900} step={100} reset={900} onChange={(v) => update({ fontWeight: v })} />
+                <ProSlider label="Spessore info" testId="grid-meta-weight-slider" value={config.metaWeight ?? 900} min={100} max={900} step={100} reset={900} onChange={(v) => update({ metaWeight: v })} />
+              </div>
               <div onClick={() => fontInputRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); onFonts(e.dataTransfer.files); }}
                 data-testid="grid-font-dropzone"
                 className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/50 py-3 transition-all hover:border-emerald-500/50 hover:bg-emerald-500/5">
