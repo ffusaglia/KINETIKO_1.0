@@ -298,7 +298,7 @@ export default function GridStudio() {
     } catch { cropped = false; }
     const mime = pickVideoMime();
     let rec;
-    try { rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 16_000_000 } : {}); }
+    try { rec = new MediaRecorder(stream, mime ? { mimeType: mime } : {}); }
     catch { stream.getTracks().forEach((t) => t.stop()); toast.error("Registrazione non supportata dal browser"); return; }
     const chunks = [];
     rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
@@ -314,7 +314,7 @@ export default function GridStudio() {
     // If the user stops sharing from the browser bar, finalize the clip.
     track.addEventListener("ended", () => { if (rec.state !== "inactive") rec.stop(); });
     recRef.current = rec;
-    rec.start(1000);
+    rec.start();
     setRecording(true);
     const fmt = (mime || "").includes("mp4") ? "MP4" : "WEBM";
     toast.success(cropped

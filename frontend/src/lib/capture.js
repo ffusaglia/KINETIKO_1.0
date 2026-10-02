@@ -176,12 +176,13 @@ export function targetDims(aspect) {
 }
 
 export function pickVideoMime() {
+  // WebM (VP9/VP8) is what MediaRecorder reliably produces. In-browser MP4
+  // recording is experimental and tends to emit corrupt files, so it's last resort.
   const cands = [
-    "video/mp4;codecs=avc1.42E01E",
-    "video/mp4",
     "video/webm;codecs=vp9",
     "video/webm;codecs=vp8",
     "video/webm",
+    "video/mp4",
   ];
   if (typeof MediaRecorder === "undefined") return "";
   for (const m of cands) { if (MediaRecorder.isTypeSupported(m)) return m; }
